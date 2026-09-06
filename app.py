@@ -3992,9 +3992,8 @@ def render_game_review(document: dict, result) -> None:
         edited.loc[:, "selected"] = False
         document["review_grid_version"] = 5
         document["review_table"] = edited
-    cards = build_translation_cards(
-        document["dataframe"], result, edited, glossary_entries
-    )
+    # `cards` from above is still valid for `edited`: it's a copy of `review` with only
+    # the `selected` checkbox reset, and build_translation_cards never reads that column.
 
     with st.container(border=False, key="review_directory_panel"):
             sort_by = document.get("review_sort", "Story context order")

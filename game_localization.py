@@ -143,7 +143,12 @@ def character_profiles(bible: pd.DataFrame) -> dict[str, dict[str, str]]:
 def _value(df: pd.DataFrame, row_position: int, column: str | None) -> str:
     if not column:
         return ""
-    value = df.iloc[row_position][column]
+    # df.iloc[row_position][column] reconstructs a whole cross-column row Series on
+    # every call; with hundreds of lookups per row (one per config field, repeated
+    # for neighboring-line context) that dominates review-grid build time for large
+    # documents. Indexing the column first (a cheap view) then the row by position
+    # with .iat is the same lookup, orders of magnitude faster at this call volume.
+    value = df[column].iat[row_position]
     return "" if pd.isna(value) else str(value)
 
 
