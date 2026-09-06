@@ -14,6 +14,7 @@ from game_localization import (
     default_character_bible,
 )
 from app import REVIEW_REPORT_COLUMNS as REVIEW_REPORT_COLUMNS_FOR_TEST
+from app import FULL_REVIEW_EXPORT_COLUMNS as FULL_REVIEW_EXPORT_COLUMNS_FOR_TEST
 from app import format_length_field
 
 
@@ -171,7 +172,8 @@ def test_context_review_report_precedes_qa_report_and_is_downloadable():
     assert labels.index("Context review (1)") < labels.index("Game QA issues (1)")
     report_tables = [
         table.value for table in app.dataframe
-        if list(table.value.columns) == REVIEW_REPORT_COLUMNS_FOR_TEST
+        if list(table.value.columns[:len(FULL_REVIEW_EXPORT_COLUMNS_FOR_TEST)])
+        == FULL_REVIEW_EXPORT_COLUMNS_FOR_TEST
     ]
     assert len(report_tables) == 2
     failure_editor = next(
@@ -945,6 +947,14 @@ def test_game_dialogue_schema_opens_chat_character_bible_and_context_controls():
     next(
         button for button in app.button if button.key == "open_translation_setup_game"
     ).click().run(timeout=15)
+    assert not any(
+        checkbox.label == "Game string-package localization mode"
+        for checkbox in app.checkbox
+    )
+    assert any(
+        markdown.value == "**Workflow detected:** Game dialogue localization"
+        for markdown in app.markdown
+    )
     assert any(checkbox.label == "Run AI style evaluation after translation" for checkbox in app.checkbox)
     assert {field.label for field in app.number_input} >= {"Previous lines", "Next lines"}
     assert any(markdown.value == "**Scene & speaker work units**" for markdown in app.markdown)
@@ -981,6 +991,13 @@ def test_game_dialogue_schema_opens_chat_character_bible_and_context_controls():
         caption.value.startswith("Add one row per speaker") for caption in app.caption
     )
     assert any(button.key == "open_conversation_glossary_game" for button in app.button)
+
+
+def test_download_buttons_do_not_trigger_full_app_reruns():
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert source.count('on_click="ignore"') >= 8
+    assert 'st.info("Edit any cell below.' not in source
+    assert 'st.write("Edit any cell below.' in source
 
 
 def test_key_source_string_package_works_without_a_speaker_column():

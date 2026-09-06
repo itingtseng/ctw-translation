@@ -1844,7 +1844,7 @@ def character_bible_drawer(document_id: str) -> None:
                     )
                     touch_workspace_item(document, "bible")
 
-    st.info("Edit any cell below. You can also add or delete speaker rows, then save your changes.")
+    st.write("Edit any cell below. You can also add or delete speaker rows, then save your changes.")
     edited_bible = st.data_editor(
         document["character_bible"],
         key=(
@@ -2026,12 +2026,16 @@ def translation_setup_drawer(document_id: str) -> None:
     profiles = document["profiles"]
     proposed = [profile.name for profile in profiles if profile.selected]
 
-    document["game_mode"] = st.checkbox(
-        "Game string-package localization mode",
-        value=document.get("game_mode", False),
-        key=f"game_mode_{document_id}",
-        help="Adds speaker personality, scene context, review workflow, game QA, and targeted reruns.",
+    document["game_mode"] = detect_game_schema(dataframe)
+    if document["game_mode"] and not document.get("game_config"):
+        document["game_config"] = asdict(infer_game_config(dataframe))
+    detected_workflow = (
+        "Game dialogue localization"
+        if document["game_mode"]
+        else "General CSV translation"
     )
+    st.markdown(f"**Workflow detected:** {detected_workflow}")
+    st.caption("Selected automatically from the uploaded file’s column structure.")
     if document.get("game_mode"):
         current_config = (
             GameConfig(**document["game_config"])
@@ -2822,6 +2826,8 @@ def append_run_record(document: dict, status: dict, outcome: str, result=None, e
         "Est. tokens": metadata.get("estimated_input_tokens", 0) + metadata.get("estimated_output_tokens", 0),
         "Est. cost (USD)": metadata.get("estimated_cost_usd", 0.0),
         "API calls": getattr(metrics, "api_calls", 0),
+        "Retries": getattr(metrics, "retries", 0),
+        "Fallback splits": getattr(metrics, "fallback_splits", 0),
         "Escalated batches": getattr(metrics, "escalated_batches", 0),
         "Coverage": getattr(metrics, "coverage", None),
         "Duration (s)": round(getattr(metrics, "duration_seconds", 0.0), 2),
@@ -3169,7 +3175,10 @@ def render_quality_review(document: dict, result) -> None:
             st.caption("No sample has been reviewed yet.")
 
 
+@st.fragment
 def render_execution_log(document: dict) -> None:
+    """Its own fragment so opening the expander or downloading the log doesn't
+    force the rest of the review page (grid, QA, cards) to recompute."""
     runs = document.get("runs", [])
     if not runs:
         return
@@ -3189,6 +3198,7 @@ def render_execution_log(document: dict) -> None:
             table.to_csv(index=False).encode("utf-8-sig"),
             file_name="translation_execution_log.csv",
             mime="text/csv",
+            on_click="ignore",
         )
 
 
@@ -3484,6 +3494,7 @@ def render_failure_triage(document: dict, result) -> None:
             result.failures.to_csv(index=False).encode("utf-8-sig"),
             file_name="translation_failures.csv",
             mime="text/csv",
+            on_click="ignore",
         )
 
 
@@ -3711,10 +3722,19 @@ def build_full_review_export(
     """Everything visible in the review grid plus the Details panel, one row per
     (source row, language) — the human-readable counterpart to reviewed_export's
     wide game-import shape. Any column from the original upload that isn't already
-    represented above (platform, screen, plural, ...) is carried through untouched,
-    repeated once per language, so nothing from the source file is lost."""
+    represented above under a different name (platform, screen, plural, ...) is
+    carried through untouched, repeated once per language, so nothing from the
+    source file is lost — without duplicating columns already covered (key/source/
+    speaker/listener/emotion/scene_id/context/character_limit/screenshot, whatever
+    they're actually named in this file)."""
+    config = GameConfig(**result.game_config)
+    already_represented = {
+        config.line_id, config.source_text, config.speaker, config.listener,
+        config.emotion, config.scene_id, config.context, config.character_limit,
+        config.screenshot,
+    }
     passthrough_columns = [
-        column for column in source_df.columns if column not in FULL_REVIEW_EXPORT_COLUMNS
+        column for column in source_df.columns if column not in already_represented
     ]
     glossary_rules_text = format_glossary_rules_text(glossary_entries)
     card_lookup = {
@@ -3784,8 +3804,11 @@ def build_full_review_export(
     return pd.DataFrame(rows, columns=FULL_REVIEW_EXPORT_COLUMNS + passthrough_columns)
 
 
+@st.fragment
 def render_game_review_actions(document: dict, result, edited: pd.DataFrame, cards: pd.DataFrame) -> None:
-    """Render project-wide review tools in the persistent workspace."""
+    """Render project-wide review tools in the persistent workspace. Its own fragment
+    so opening one of these expanders, or downloading a report, doesn't force the
+    review grid above it to recompute and redraw."""
     reviewed_rows = edited[edited["status"].ne("Unreviewed")]
     if not reviewed_rows.empty:
         acceptance = reviewed_rows["status"].isin({"Approved", "Keep source text"}).mean()
@@ -3811,9 +3834,13 @@ def render_game_review_actions(document: dict, result, edited: pd.DataFrame, car
                 questions.to_csv(index=False).encode("utf-8-sig"),
                 file_name="developer_context_questions.csv",
                 mime="text/csv",
+                on_click="ignore",
             )
 
-    unified_report = build_unified_review_report(edited, cards, result)
+    glossary_entries, _ = parse_glossary(document.get("glossary_text", ""))
+    unified_report = build_full_review_export(
+        document["dataframe"], edited, cards, result, glossary_entries
+    )
     context_report = unified_report[
         unified_report["Context review"].fillna("").astype(str).str.strip().ne("")
     ].copy()
@@ -3828,6 +3855,7 @@ def render_game_review_actions(document: dict, result, edited: pd.DataFrame, car
                 context_report.to_csv(index=False).encode("utf-8-sig"),
                 file_name="game_localization_context_review.csv",
                 mime="text/csv",
+                on_click="ignore",
             )
 
     if not result.qa_issues.empty:
@@ -3841,6 +3869,7 @@ def render_game_review_actions(document: dict, result, edited: pd.DataFrame, car
                 qa_report.to_csv(index=False).encode("utf-8-sig"),
                 file_name="game_localization_qa.csv",
                 mime="text/csv",
+                on_click="ignore",
             )
     if not result.style_evaluations.empty:
         with st.expander(f"AI style evaluation ({len(result.style_evaluations)})"):
@@ -3853,6 +3882,7 @@ def render_review_header_actions(
     document: dict,
     result,
     glossary_entries,
+    cards: pd.DataFrame,
     row_count: int,
     context_review_count: int,
     needs_context_count: int,
@@ -3896,15 +3926,12 @@ def render_review_header_actions(
             unsafe_allow_html=True,
         )
         with st.container(key="review_header_download"):
-            full_cards = build_translation_cards(
-                document["dataframe"], result, document["review_table"], glossary_entries
-            )
             st.download_button(
                 "Download CSV",
                 build_full_review_export(
                     document["dataframe"],
                     document["review_table"],
-                    full_cards,
+                    cards,
                     result,
                     glossary_entries,
                 )
@@ -3913,6 +3940,7 @@ def render_review_header_actions(
                 file_name="reviewed_game_localization.csv",
                 mime="text/csv",
                 help="Full audit export: the review grid's columns plus every Details panel field (scene, emotion, dialogue context, glossary/TM hits, etc.), one row per string and language.",
+                on_click="ignore",
             )
             st.download_button(
                 "Download CSV (clean)",
@@ -3926,6 +3954,7 @@ def render_review_header_actions(
                 file_name="final_translations.csv",
                 mime="text/csv",
                 help="Shippable export: just the string id and each language's final translation, no review metadata.",
+                on_click="ignore",
             )
 
 
@@ -4340,6 +4369,7 @@ def render_game_review(document: dict, result) -> None:
             document,
             result,
             glossary_entries,
+            cards,
             len(navigation),
             int(system_context_risk.sum()),
             int(reviewer_needs_context.sum()),
@@ -4423,6 +4453,7 @@ def generic_translation_review_drawer(document_id: str) -> None:
             file_name="translated.csv",
             mime="text/csv",
             width="stretch",
+            on_click="ignore",
         )
     review_table = build_generic_review_table(result)
     st.dataframe(
