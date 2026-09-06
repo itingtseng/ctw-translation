@@ -7,7 +7,7 @@ The implementation is deliberately lean: Streamlit for interaction, pandas for d
 ## Quick start (2 minutes)
 
 1. Open the app.
-2. Upload `sample_products.csv` (or `large_context_localization_demo.csv` for the game-localization mode — see "Mobile-game localization mode" below).
+2. Upload `large_context_localization_demo.csv` as the translation data, then upload its matching `large_context_character_bible_demo.csv` as the Character Bible. This is the recommended interview demo: 120 Chinese dialogue rows with linked scenes, character context, and deliberate context-review cases.
 3. Type `Translate to English and Japanese` in the chat.
 4. Preview the result, then download the translated CSV.
 
