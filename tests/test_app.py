@@ -934,8 +934,8 @@ def test_game_dialogue_schema_opens_chat_character_bible_and_context_controls():
     assert not any(markdown.value == "**Pre-run estimate**" for markdown in app.markdown)
     assert not any(button.label == "Preview workload & cost" for button in app.button)
     assert "Character guidance is missing" in app.session_state["documents"]["game"]["messages"][-1]["content"]
-    assert any(expander.label == "Advanced column mapping" for expander in app.expander)
-    assert any(expander.label == "Context & style evaluation" for expander in app.expander)
+    assert any(caption.value == "Advanced column mapping" for caption in app.caption)
+    assert any(caption.value == "Context & style evaluation" for caption in app.caption)
     assert not any(field.key == "project_name_game" for field in app.text_input)
     assert any(button.key == "open_bible_upload_game" for button in app.button)
     bible_button = next(

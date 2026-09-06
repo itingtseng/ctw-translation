@@ -372,6 +372,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 .sort-by { min-width: 205px !important; }
 .rerun-scope-control select { min-width: 175px; }
+.rerun-scope-control { margin-left: 1.25rem; }
 .rerun-value-control select { min-width: 130px; max-width: 170px; }
 .tooltip {
   display: inline-flex;
@@ -1776,7 +1777,7 @@ def character_bible_drawer(document_id: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-    upload_column, _, cancel_column, save_column = st.columns([1.45, 5, 0.8, 1.35])
+    upload_column, _, cancel_column, save_column = st.columns([1.45, 5, 0.6, 1.15])
     with upload_column, st.container(key="bible_upload_compact"):
         bible_upload = st.file_uploader(
             "Upload",
@@ -1787,14 +1788,14 @@ def character_bible_drawer(document_id: str) -> None:
     with cancel_column:
         cancel_bible = st.button(
             "Cancel",
-            width="content",
+            width="stretch",
             key=f"close_bible_{document_id}",
         )
     with save_column:
         save_bible = st.button(
             "Save Character Bible",
             type="primary",
-            width="content",
+            width="stretch",
             key=f"save_bible_{document_id}",
         )
 
@@ -1942,7 +1943,7 @@ def glossary_drawer(document_id: str) -> None:
         "Use source | language | translation, optionally followed by type | notes. "
         "A single term means do not translate."
     )
-    upload_column, _, cancel_column, apply_column = st.columns([1.45, 5, 0.8, 1.1])
+    upload_column, _, cancel_column, apply_column = st.columns([1.45, 5, 0.6, 0.95])
     upload_key = f"drawer_glossary_upload_{document_id}_{document.get('glossary_revision', 0)}"
     with upload_column, st.container(key="glossary_upload_compact"):
         st.file_uploader(
@@ -1954,12 +1955,12 @@ def glossary_drawer(document_id: str) -> None:
             args=(document_id, upload_key),
         )
     with cancel_column:
-        cancel = st.button("Cancel", width="content", key=f"close_glossary_{document_id}")
+        cancel = st.button("Cancel", width="stretch", key=f"close_glossary_{document_id}")
     with apply_column:
         st.button(
             "Apply glossary",
             type="primary",
-            width="content",
+            width="stretch",
             key=f"drawer_apply_glossary_{document_id}",
             on_click=apply_glossary,
             args=(document_id,),
@@ -2071,7 +2072,8 @@ def translation_setup_drawer(document_id: str) -> None:
                 key=f"game_source_column_{document_id}",
             )
         with advanced_mapping_cell:
-            with st.expander("Advanced column mapping", expanded=False):
+            st.caption("Advanced column mapping")
+            with st.popover("Optional fields", width="stretch"):
                 st.caption("Optional fields used for context, tracking, and UI-length validation.")
                 line_id_column = optional_game_column("Line ID", "line_id")
                 scene_column = optional_game_column("Scene", "scene_id")
@@ -2093,7 +2095,8 @@ def translation_setup_drawer(document_id: str) -> None:
         )
         document["selected_columns"] = [game_config.source_text]
         with context_style_cell:
-            with st.expander("Context & style evaluation", expanded=False):
+            st.caption("Context & style evaluation")
+            with st.popover("Context & style", width="stretch"):
                 st.caption(
                     "Control neighboring dialogue context and the optional post-translation style review."
                 )
