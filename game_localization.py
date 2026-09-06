@@ -938,6 +938,29 @@ def reviewed_export(
     return output
 
 
+def clean_export(
+    source_df: pd.DataFrame,
+    result: TranslationResult,
+    review_table: pd.DataFrame,
+) -> pd.DataFrame:
+    """A shippable export: string id, the original source text, and each language's final
+    translation, with no review metadata (status, confidence, QA issue, notes, etc.)."""
+    config = GameConfig(**result.game_config)
+    output = pd.DataFrame(index=source_df.index)
+    id_column = config.available(source_df, "line_id")
+    if id_column:
+        output[id_column] = source_df[id_column]
+    output[config.source_text] = source_df[config.source_text]
+    for language in result.target_languages:
+        column = f"{config.source_text}__{safe_column_suffix(language)}"
+        output[column] = ""
+        rows = review_table[review_table["language"].eq(language)]
+        for row in rows.itertuples():
+            index = output.index[int(row.row_position)]
+            output.at[index, column] = row.reviewed_translation or row.ai_translation
+    return output
+
+
 def approved_translation_memory(review_table: pd.DataFrame | None) -> dict[tuple[str, str], str]:
     """Treat reviewer-approved edits as project-local exact-match translation memory."""
     if review_table is None or review_table.empty:

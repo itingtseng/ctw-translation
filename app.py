@@ -54,12 +54,12 @@ from game_localization import (
     build_game_qa,
     build_review_table,
     build_translation_cards,
+    clean_export,
     count_game_batches,
     default_character_bible,
     detect_game_schema,
     game_work_units,
     infer_game_config,
-    reviewed_export,
     select_review_rows,
     validate_character_bible,
 )
@@ -3657,6 +3657,129 @@ def build_unified_review_report(
     return pd.DataFrame(rows, columns=REVIEW_REPORT_COLUMNS)
 
 
+FULL_REVIEW_EXPORT_COLUMNS = [
+    "String ID",
+    "Language",
+    "Speaker",
+    "Listener",
+    "Emotion",
+    "Scene",
+    "Original",
+    "AI translation",
+    "Final translation",
+    "Developer note",
+    "Status",
+    "Length",
+    "Context review",
+    "Needs context",
+    "QA issue",
+    "Suggested fix",
+    "Confidence",
+    "Failure reason",
+    "Notes",
+    "Previous dialogue",
+    "Next dialogue",
+    "Glossary hits",
+    "TM matches",
+    "Placeholder details",
+    "Glossary & protected terms",
+    "Screenshot",
+    "Available context and provenance",
+]
+
+
+def format_glossary_rules_text(glossary_entries) -> str:
+    """The same project-wide terminology summary shown in the Details panel."""
+    return "; ".join(
+        f"{entry.source} (preserve)" if entry.preserves_source
+        else f"{entry.source} → {entry.translation} ({entry.target_language})"
+        for entry in glossary_entries
+    ) or "No terminology rules configured."
+
+
+def build_full_review_export(
+    source_df: pd.DataFrame,
+    review: pd.DataFrame,
+    cards: pd.DataFrame,
+    result,
+    glossary_entries=(),
+) -> pd.DataFrame:
+    """Everything visible in the review grid plus the Details panel, one row per
+    (source row, language) — the human-readable counterpart to reviewed_export's
+    wide game-import shape. Any column from the original upload that isn't already
+    represented above (platform, screen, plural, ...) is carried through untouched,
+    repeated once per language, so nothing from the source file is lost."""
+    passthrough_columns = [
+        column for column in source_df.columns if column not in FULL_REVIEW_EXPORT_COLUMNS
+    ]
+    glossary_rules_text = format_glossary_rules_text(glossary_entries)
+    card_lookup = {
+        (int(row.row_position), str(row.language)): row
+        for row in cards.itertuples()
+    } if cards is not None and not cards.empty else {}
+    failure_lookup: dict[tuple[int, str], str] = {}
+    if result.failures is not None and not result.failures.empty:
+        for key, group in result.failures.groupby(["row_position", "language"]):
+            failure_lookup[(int(key[0]), str(key[1]))] = "; ".join(
+                dict.fromkeys(group["error"].fillna("").astype(str))
+            )
+    rows: list[dict] = []
+    for review_row in review.itertuples():
+        key = (int(review_row.row_position), str(review_row.language))
+        card = card_lookup.get(key)
+        rows.append({
+            "String ID": str(review_row.line_id),
+            "Language": str(review_row.language),
+            "Speaker": str(review_row.speaker),
+            "Listener": str(getattr(review_row, "listener", "")),
+            "Emotion": str(getattr(review_row, "emotion", "")),
+            "Scene": str(getattr(review_row, "scene_id", "")),
+            "Original": (
+                f"Keep source · {review_row.source_text}"
+                if str(review_row.status) == "Keep source text"
+                else str(review_row.source_text)
+            ),
+            "AI translation": str(review_row.ai_translation),
+            "Final translation": str(review_row.reviewed_translation),
+            "Developer note": str(getattr(review_row, "scene_context", "") or ""),
+            "Status": str(review_row.status),
+            "Length": format_length_field(
+                str(review_row.reviewed_translation), getattr(review_row, "character_limit", "")
+            ),
+            "Context review": str(review_row.context_risk),
+            "Needs context": (
+                "Yes" if str(review_row.status) == "Needs context" else ""
+            ),
+            "QA issue": str(getattr(review_row, "qa_issue", "")),
+            "Suggested fix": str(getattr(review_row, "suggested_fix", "")),
+            "Confidence": (
+                f"{getattr(card, 'confidence_level', '') or 'Unknown'} · {int(getattr(card, 'confidence', 0))}%"
+                if card else ""
+            ),
+            "Failure reason": failure_lookup.get(key, ""),
+            "Notes": str(getattr(review_row, "reviewer_comment", "") or ""),
+            "Previous dialogue": str(getattr(review_row, "previous_lines", "") or "Not provided"),
+            "Next dialogue": str(getattr(review_row, "next_lines", "") or "Not provided"),
+            "Glossary hits": (
+                str(getattr(card, "glossary_hits", "")) if card else ""
+            ) or "Not provided",
+            "TM matches": (
+                str(getattr(card, "tm_match", "")) if card else ""
+            ) or "Not provided",
+            "Placeholder details": str(getattr(review_row, "placeholder_details", "") or "Not provided"),
+            "Glossary & protected terms": glossary_rules_text,
+            "Screenshot": str(getattr(review_row, "screenshot", "") or "Not provided"),
+            "Available context and provenance": (
+                str(getattr(card, "context_sources", "")) if card else ""
+            ),
+            **{
+                column: source_df.iloc[int(review_row.row_position)][column]
+                for column in passthrough_columns
+            },
+        })
+    return pd.DataFrame(rows, columns=FULL_REVIEW_EXPORT_COLUMNS + passthrough_columns)
+
+
 def render_game_review_actions(document: dict, result, edited: pd.DataFrame, cards: pd.DataFrame) -> None:
     """Render project-wide review tools in the persistent workspace."""
     reviewed_rows = edited[edited["status"].ne("Unreviewed")]
@@ -3719,6 +3842,89 @@ def render_game_review_actions(document: dict, result, edited: pd.DataFrame, car
         with st.expander(f"AI style evaluation ({len(result.style_evaluations)})"):
             st.caption("Advisory model scores are separate from human approval.")
             st.dataframe(result.style_evaluations, hide_index=True, width="stretch")
+
+
+@st.fragment
+def render_review_header_actions(
+    document: dict,
+    result,
+    glossary_entries,
+    row_count: int,
+    context_review_count: int,
+    needs_context_count: int,
+    sort_by: str,
+) -> None:
+    """Title, summary, and downloads as their own fragment so a download click
+    doesn't rerun (and visibly flash) the whole review grid above it."""
+    title_column, summary_column, download_column = st.columns(
+        [2.0, 4.5, 3.0], vertical_alignment="center"
+    )
+    with title_column:
+        st.markdown("### Localization review workbench")
+    with summary_column:
+        st.caption(
+            f"{row_count} row(s) · "
+            f"{context_review_count} context review suggested · "
+            f"{needs_context_count} marked Needs context · "
+            "all rows are editable · "
+            + (
+                "Story context order keeps neighboring dialogue interleaved"
+                if sort_by == "Story context order"
+                else f"Sorted by {sort_by.lower()}"
+            )
+        )
+    with download_column:
+        st.markdown(
+            """
+            <style>
+            .st-key-review_header_download {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: flex-end !important;
+                align-items: center !important;
+                gap: 0.5rem !important;
+            }
+            .st-key-review_header_download [data-testid="stElementContainer"] {
+                width: auto !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.container(key="review_header_download"):
+            full_cards = build_translation_cards(
+                document["dataframe"], result, document["review_table"], glossary_entries
+            )
+            st.download_button(
+                "Download CSV",
+                build_full_review_export(
+                    document["dataframe"],
+                    document["review_table"],
+                    full_cards,
+                    result,
+                    glossary_entries,
+                )
+                .to_csv(index=False)
+                .encode("utf-8-sig"),
+                file_name="reviewed_game_localization.csv",
+                mime="text/csv",
+                help="Full audit export: the review grid's columns plus every Details panel field (scene, emotion, dialogue context, glossary/TM hits, etc.), one row per string and language.",
+            )
+            st.download_button(
+                "Download CSV (clean)",
+                clean_export(
+                    document["dataframe"],
+                    result,
+                    document["review_table"],
+                )
+                .to_csv(index=False)
+                .encode("utf-8-sig"),
+                file_name="final_translations.csv",
+                mime="text/csv",
+                help="Shippable export: just the string id and each language's final translation, no review metadata.",
+            )
+
+
 @st.fragment
 def render_game_review(document: dict, result) -> None:
     """Render review interactions in-place without rebuilding the full dialog."""
@@ -3734,11 +3940,7 @@ def render_game_review(document: dict, result) -> None:
     cards = build_translation_cards(
         document["dataframe"], result, review, glossary_entries
     )
-    glossary_rules_text = "; ".join(
-        f"{entry.source} (preserve)" if entry.preserves_source
-        else f"{entry.source} → {entry.translation} ({entry.target_language})"
-        for entry in glossary_entries
-    ) or "No terminology rules configured."
+    glossary_rules_text = format_glossary_rules_text(glossary_entries)
     review = review.copy()
     card_confidence = {
         (int(row.row_position), str(row.language)): (int(row.confidence), str(row.confidence_level))
@@ -4115,39 +4317,16 @@ def render_game_review(document: dict, result) -> None:
                     st.rerun()
 
     with header_placeholder.container():
-        title_column, summary_column, download_column = st.columns(
-            [2.1, 5.4, 1], vertical_alignment="center"
+        render_review_header_actions(
+            document,
+            result,
+            glossary_entries,
+            len(navigation),
+            int(system_context_risk.sum()),
+            int(reviewer_needs_context.sum()),
+            sort_by,
         )
-        with title_column:
-            st.markdown("### Localization review workbench")
-        with summary_column:
-            st.caption(
-                f"{len(navigation)} row(s) · "
-                f"{int(system_context_risk.sum())} context review suggested · "
-                f"{int(reviewer_needs_context.sum())} marked Needs context · "
-                "all rows are editable · "
-                + (
-                    "Story context order keeps neighboring dialogue interleaved"
-                    if sort_by == "Story context order"
-                    else f"Sorted by {sort_by.lower()}"
-                )
-            )
-        with download_column:
-            with st.container(key="review_header_download"):
-                st.download_button(
-                    "Download CSV",
-                    reviewed_export(
-                        document["dataframe"],
-                        result,
-                        document["review_table"],
-                        glossary_entries,
-                    )
-                    .to_csv(index=False)
-                    .encode("utf-8-sig"),
-                    file_name="reviewed_game_localization.csv",
-                    mime="text/csv",
-                    width="stretch",
-                )
+
 
 @st.dialog(" ", width="large", on_dismiss="rerun")
 def localization_review_drawer(document_id: str) -> None:
@@ -4212,6 +4391,11 @@ def generic_translation_review_drawer(document_id: str) -> None:
         f"{len(result.dataframe):,} source row(s) · "
         f"{len(result.source_columns)} translated column(s) · "
         f"{len(result.target_languages)} target language(s)"
+    )
+    st.caption(
+        "This file has no game-dialogue columns (speaker, scene, character limit, etc.), "
+        "so it uses this simpler read-only review. Upload a game-shaped CSV to unlock the "
+        "full editable workbench with QA triage and targeted rerun."
     )
     with download_column:
         st.download_button(
@@ -5283,10 +5467,6 @@ def main() -> None:
             letter-spacing: -0.015em !important;
             white-space: nowrap !important;
         }
-        .st-key-review_header_download [data-testid="stDownloadButton"] {
-            display: flex;
-            justify-content: flex-end;
-        }
         .st-key-review_header_download button p {
             white-space: nowrap;
         }
@@ -5507,7 +5687,7 @@ def main() -> None:
         [data-testid="stChatMessageContent"],
         [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])
         [data-testid="stMarkdownContainer"] {
-            text-align: right;
+            text-align: left;
         }
         [data-testid="stSidebar"] [data-testid="stButton"] button {
             justify-content: flex-start;
