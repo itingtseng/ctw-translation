@@ -13,16 +13,10 @@ from game_localization import (
     build_review_table,
     default_character_bible,
 )
+from app import REVIEW_REPORT_COLUMNS as REVIEW_REPORT_COLUMNS_FOR_TEST
 
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
-
-REVIEW_REPORT_COLUMNS_FOR_TEST = [
-    "String ID", "Language", "Speaker", "Original", "AI translation",
-    "Confidence score", "Confidence level", "Context review", "QA issue",
-    "Suggested fix", "Failure reason", "Available context and provenance",
-    "Final translation", "Resolution note",
-]
 
 
 def make_document(document_id: str, name: str, dataframe: pd.DataFrame) -> dict:
@@ -76,38 +70,48 @@ def test_empty_app_prompts_for_a_file():
     assert not any(button.key == "onboarding_open_bible" for button in app.button)
 
 
-def test_review_grid_offers_qa_review_and_sort_modes():
+def test_review_grid_offers_review_signals_and_sort_options_without_review_mode():
     source = APP_PATH.read_text(encoding="utf-8")
-    assert 'value="QA issue queue">Review mode: QA issue queue' in source
     assert 'value="QA issues first">Sort by: QA issues first' in source
-    assert 'value="Low confidence queue">Review mode: Low confidence queue' in source
     assert 'value="Low confidence first">Sort by: Low confidence first' in source
-    assert '<th class="confidence-column">Confidence score</th>' in source
+    assert 'aria-label="Review mode"' not in source
+    assert 'Review mode:' not in source
+    assert '<th class="confidence-column">Confidence</th>' in source
+    assert '<th class="confidence-column">Confidence score</th>' not in source
+    assert '<th class="confidence-column">Confidence level</th>' not in source
     assert 'Yellow: context review' in source
     assert 'Red: QA issue' in source
     assert 'Blue: low confidence' in source
     assert '<th class="id-column">String ID</th>' in source
     assert '<th class="language-column">Language</th>' in source
     assert '<th class="speaker-column">Speaker</th>' in source
-    assert '<th class="confidence-column">Confidence level</th>' in source
+    assert '<th class="text-column">Developer note</th>' in source
+    assert '<th class="length-column">Length</th>' in source
     assert '<th class="context-column">Context review</th>' in source
     assert '<th class="qa-column">QA issue</th>' in source
     assert '<th class="text-column">Suggested fix</th>' in source
     assert '<th class="failure-column">Failure reason</th>' in source
     assert '<th class="text-column">Final translation</th>' in source
+    assert '<th class="keep-column">Keep source text</th>' not in source
+    assert 'keep.textContent = "Keep source"' in source
+    assert source.index('originalLayout.appendChild(originalText)') < source.index(
+        'originalLayout.appendChild(keep)'
+    )
     shared_headers = [
         '<th class="id-column">String ID</th>',
         '<th class="language-column">Language</th>',
         '<th class="speaker-column">Speaker</th>',
         '<th class="text-column">Original</th>',
+        '<th class="text-column">Developer note</th>',
         '<th class="text-column">AI translation</th>',
-        '<th class="confidence-column">Confidence score</th>',
-        '<th class="confidence-column">Confidence level</th>',
+        '<th class="text-column">Final translation</th>',
         '<th class="context-column">Context review</th>',
+        '<th class="flag-column">Needs context</th>',
         '<th class="qa-column">QA issue</th>',
         '<th class="text-column">Suggested fix</th>',
+        '<th class="length-column">Length</th>',
+        '<th class="confidence-column">Confidence</th>',
         '<th class="failure-column">Failure reason</th>',
-        '<th class="text-column">Final translation</th>',
     ]
     assert [source.index(header) for header in shared_headers] == sorted(
         source.index(header) for header in shared_headers
@@ -203,7 +207,36 @@ def test_active_project_uses_native_chat_input():
         button for button in app.button
         if button.key == "open_conversation_languages_one"
     ).proto.type == "primary"
+    assert not any(button.key == "open_bible_upload_one" for button in app.button)
     assert not any(button.key == "translate_one" for button in app.button)
+
+
+def test_general_csv_uses_current_conversation_and_review_workflow():
+    source = pd.read_csv(
+        APP_PATH.parent / "samples" / "additional-examples" / "sample_products.csv"
+    ).fillna("")
+    document = make_document("products", "sample_products.csv", source)
+    document["target_languages"] = ["English", "Japanese"]
+    document["selected_columns"] = ["product_name", "category"]
+    app = AppTest.from_file(APP_PATH).run(timeout=15)
+    app.session_state["documents"] = {"products": document}
+    app.session_state["active_document_id"] = "products"
+    app.run(timeout=15)
+
+    assert not app.exception
+    assert not app.session_state["documents"]["products"]["game_mode"]
+    assert not any(button.key == "open_bible_upload_products" for button in app.button)
+    assert any(
+        button.key == "preview_translation_plan_products" for button in app.button
+    )
+    assert any(button.key == "translate_products" for button in app.button)
+    next(
+        button for button in app.button
+        if button.key == "preview_translation_plan_products"
+    ).click().run(timeout=15)
+    assert app.session_state["documents"]["products"]["messages"][-1]["content"].startswith(
+        "Estimate ready: **26 translations**"
+    )
 
 
 def test_glossary_workspace_card_only_appears_after_rules_exist():
@@ -654,8 +687,6 @@ def test_completed_result_renders_quality_review_retry_and_execution_history():
     )
     assert app.session_state["documents"]["one"]["glossary_revision"] == 1
     assert app.session_state["documents"]["one"]["result_glossary_revision"] == 0
-    assert len(app.radio) > 0
-    assert any(expander.label == "Quality spot check" for expander in app.expander)
     assert any(expander.label == "Execution history (1)" for expander in app.expander)
     assert any(expander.label == "Failure triage (1 unresolved)" for expander in app.expander)
     failure_apply = next(button for button in app.button if button.label == "Apply resolution")
@@ -666,6 +697,19 @@ def test_completed_result_renders_quality_review_retry_and_execution_history():
             :len(REVIEW_REPORT_COLUMNS_FOR_TEST)
         ]
     ) == REVIEW_REPORT_COLUMNS_FOR_TEST
+    review_button = next(
+        button for button in app.button if button.key == "open_generic_review_one"
+    )
+    assert review_button.label == "Open localization review"
+    assert review_button.proto.type == "primary"
+    review_button.click().run(timeout=15)
+    assert any(
+        markdown.value == "### Localization review workbench"
+        for markdown in app.markdown
+    )
+    assert any(button.label == "Download CSV" for button in app.get("download_button"))
+    assert any(expander.label == "Quality spot check" for expander in app.expander)
+    assert len(app.radio) > 0
 
 
 def failure_document() -> dict:
@@ -1104,7 +1148,6 @@ def test_completed_game_result_renders_review_download_qa_and_targeted_rerun():
     review_button.click().run(timeout=15)
 
     assert not app.exception
-    assert app.session_state["documents"]["game"]["review_mode"] == "QA issue queue"
     assert any(
         markdown.value == "### Localization review workbench"
         for markdown in app.markdown
@@ -1137,7 +1180,7 @@ def test_completed_game_result_renders_review_download_qa_and_targeted_rerun():
     assert any(expander.label.startswith("AI style evaluation") for expander in app.expander)
 
 
-def test_review_details_stay_closed_until_details_checkbox_is_selected():
+def test_review_selects_first_row_by_default_for_details():
     dialogue = pd.DataFrame({
         "line_id": ["L1"],
         "scene_id": ["S1"],
@@ -1165,6 +1208,9 @@ def test_review_details_stay_closed_until_details_checkbox_is_selected():
     next(button for button in app.button if button.key == "open_game_review_game").click().run(timeout=15)
 
     assert not app.exception
+    saved_review = app.session_state["documents"]["game"]["review_table"]
+    assert int(saved_review["selected"].fillna(False).sum()) == 1
+    assert bool(saved_review.iloc[0]["selected"])
     assert not any(subheader.value.startswith("Context inspector") for subheader in app.subheader)
     assert not any(button.label == "Save review" for button in app.button)
     assert not any(selectbox.key == "review_mode_game" for selectbox in app.selectbox)

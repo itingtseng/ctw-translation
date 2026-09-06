@@ -789,6 +789,7 @@ def build_review_table(
                     f"{line['speaker']}: {line['text']}" for line in record["next_lines"]
                 ),
                 "context_risk": context_risks.get(position, ""),
+                "character_limit": _value(source_df, position, config.available(source_df, "character_limit")),
                 "language": language,
                 "source_text": _value(source_df, position, config.source_text),
                 "ai_translation": _value(result.dataframe, position, translated_column),

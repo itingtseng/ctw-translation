@@ -78,15 +78,17 @@ REVIEW_REPORT_COLUMNS = [
     "Language",
     "Speaker",
     "Original",
+    "Developer note",
     "AI translation",
-    "Confidence score",
-    "Confidence level",
+    "Final translation",
     "Context review",
+    "Needs context",
     "QA issue",
     "Suggested fix",
+    "Length",
+    "Confidence",
     "Failure reason",
     "Available context and provenance",
-    "Final translation",
     "Resolution note",
 ]
 
@@ -109,17 +111,8 @@ NON_CHARACTER_SPEAKERS = {
 
 
 REVIEW_GRID_HTML = """
-<div class="review-grid-shell">
+  <div class="review-grid-shell">
   <div class="review-grid-actions">
-    <label class="toolbar-select">
-      <select class="review-mode" aria-label="Review mode">
-        <option value="Needs context queue">Review mode: Needs context queue</option>
-        <option value="QA issue queue">Review mode: QA issue queue</option>
-        <option value="Low confidence queue">Review mode: Low confidence queue</option>
-        <option value="Edit all translations">Review mode: Edit all translations</option>
-      </select>
-    </label>
-    <span class="tooltip" title="Queue modes unlock only matching rows. Edit all translations unlocks every row.">?</span>
     <label class="toolbar-select">
       <select class="sort-by" aria-label="Sort by">
         <option value="Story context order">Sort by: Story context order</option>
@@ -163,17 +156,17 @@ REVIEW_GRID_HTML = """
           <th class="language-column">Language</th>
           <th class="speaker-column">Speaker</th>
           <th class="text-column">Original</th>
+          <th class="text-column">Developer note</th>
           <th class="text-column">AI translation</th>
-          <th class="confidence-column">Confidence score</th>
-          <th class="confidence-column">Confidence level</th>
+          <th class="text-column">Final translation</th>
           <th class="context-column">Context review</th>
+          <th class="flag-column">Needs context</th>
           <th class="qa-column">QA issue</th>
           <th class="text-column">Suggested fix</th>
+          <th class="length-column">Length</th>
+          <th class="confidence-column">Confidence</th>
           <th class="failure-column">Failure reason</th>
-          <th class="text-column">Final translation</th>
           <th class="notes-column">Notes</th>
-          <th class="flag-column">Needs context</th>
-          <th class="keep-column">Keep source text</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -268,7 +261,8 @@ tr.locked td.translation-cell {
 .failure-column { min-width: 240px; }
 .notes-column { min-width: 220px; }
 .flag-column { min-width: 130px; text-align: center; }
-.keep-column { min-width: 160px; text-align: center; }
+.length-column { min-width: 90px; text-align: center; }
+.length-over { color: #b91c1c; font-weight: 600; }
 td.center { text-align: center; }
 input[type="text"] {
   width: 100%;
@@ -294,6 +288,16 @@ input:disabled {
   align-items: center;
   gap: 0.45rem;
 }
+.original-layout {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.original-layout span {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+}
 .suggested-fix-layout span {
   flex: 1;
   white-space: normal;
@@ -311,9 +315,6 @@ input:disabled {
 .use-fix:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-.keep-source-toggle {
-  width: 100%;
 }
 .keep-source-toggle.active {
   color: #ffffff;
@@ -361,7 +362,6 @@ input[type="checkbox"], input[type="radio"] {
   font: inherit;
   font-weight: 600;
 }
-.review-mode { min-width: 235px !important; }
 .sort-by { min-width: 205px !important; }
 .rerun-scope-control select { min-width: 175px; }
 .rerun-value-control select { min-width: 130px; max-width: 170px; }
@@ -465,7 +465,6 @@ export default function (component) {
   const tbody = parentElement.querySelector("tbody")
   const applyButton = parentElement.querySelector(".save-review")
   const targetedRerunButton = parentElement.querySelector(".targeted-rerun")
-  const reviewMode = parentElement.querySelector(".review-mode")
   const sortBy = parentElement.querySelector(".sort-by")
   const rerunScope = parentElement.querySelector(".rerun-scope")
   const rerunValue = parentElement.querySelector(".rerun-value")
@@ -476,7 +475,6 @@ export default function (component) {
   if (!tbody || !applyButton) return
 
   const rows = Array.isArray(data?.rows) ? data.rows : []
-  if (reviewMode) reviewMode.value = data?.review_mode ?? "Needs context queue"
   if (sortBy) sortBy.value = data?.sort_by ?? "Story context order"
   const storageKey = `review-grid-draft:${data?.storage_key ?? "default"}`
   let draft = null
@@ -582,11 +580,9 @@ export default function (component) {
     const fields = detailsPanel.querySelector(".details-fields")
     fields.replaceChildren()
     ;[
-      ["Confidence", row.confidence],
       ["Scene", row.scene],
       ["Speaker → Listener", row.speaker_listener],
       ["Emotion", row.emotion],
-      ["Developer note", row.developer_note],
     ].forEach(([label, value]) => {
       const field = document.createElement("div")
       field.className = "details-field"
@@ -657,11 +653,53 @@ export default function (component) {
     addTextCell(tr, row.string_id)
     addTextCell(tr, row.language)
     addTextCell(tr, row.speaker)
-    addTextCell(tr, row.original)
+    const originalCell = document.createElement("td")
+    originalCell.className = "original-cell"
+    const originalLayout = document.createElement("div")
+    originalLayout.className = "original-layout"
+    const keep = document.createElement("button")
+    keep.type = "button"
+    keep.className = "use-fix keep-source-toggle"
+    keep.disabled = !row.editable
+    keep.dataset.field = "keep_source"
+    const setKeepState = (active) => {
+      keep.classList.toggle("active", active)
+      keep.textContent = "Keep source"
+      keep.setAttribute("aria-pressed", String(active))
+    }
+    setKeepState(Boolean(row.keep_source))
+    const originalText = document.createElement("span")
+    originalText.textContent = row.original ?? ""
+    originalLayout.appendChild(originalText)
+    originalLayout.appendChild(keep)
+    originalCell.appendChild(originalLayout)
+    tr.appendChild(originalCell)
+
+    addTextCell(tr, row.developer_note)
     addTextCell(tr, row.ai_translation)
-    addTextCell(tr, row.confidence_score, "confidence-cell")
-    addTextCell(tr, row.confidence_level, "confidence-cell")
+
+    const translationCell = document.createElement("td")
+    translationCell.className = "translation-cell final-translation-cell"
+    const translation = document.createElement("input")
+    translation.type = "text"
+    translation.value = row.translation ?? ""
+    translation.disabled = !row.editable
+    translation.dataset.field = "translation"
+    translationCell.appendChild(translation)
+    tr.appendChild(translationCell)
+
     addTextCell(tr, row.context_review, "context-review-cell")
+
+    const needsCell = document.createElement("td")
+    needsCell.className = "center"
+    const needs = document.createElement("input")
+    needs.type = "checkbox"
+    needs.checked = Boolean(row.needs_context)
+    needs.disabled = !row.editable
+    needs.dataset.field = "needs_context"
+    needsCell.appendChild(needs)
+    tr.appendChild(needsCell)
+
     addTextCell(tr, row.qa_issue, "qa-cell")
 
     const suggestedCell = document.createElement("td")
@@ -680,24 +718,30 @@ export default function (component) {
       useFix.onclick = () => {
         translation.value = row.suggested_fix
         persistDraft()
+        updateLength()
       }
       suggestedLayout.appendChild(useFix)
     }
     suggestedCell.appendChild(suggestedLayout)
     tr.appendChild(suggestedCell)
 
-    addTextCell(tr, row.failure_reason)
+    const lengthCell = document.createElement("td")
+    lengthCell.className = "length-column"
+    const limit = row.character_limit ? Number(row.character_limit) : null
+    const updateLength = () => {
+      const current = translation.value.length
+      lengthCell.textContent = limit ? `${current} / ${limit}` : String(current)
+      lengthCell.classList.toggle("length-over", Boolean(limit) && current > limit)
+    }
+    updateLength()
+    translation.oninput = () => {
+      persistDraft()
+      updateLength()
+    }
+    tr.appendChild(lengthCell)
 
-    const translationCell = document.createElement("td")
-    translationCell.className = "translation-cell final-translation-cell"
-    const translation = document.createElement("input")
-    translation.type = "text"
-    translation.value = row.translation ?? ""
-    translation.disabled = !row.editable
-    translation.dataset.field = "translation"
-    translation.oninput = persistDraft
-    translationCell.appendChild(translation)
-    tr.appendChild(translationCell)
+    addTextCell(tr, row.confidence, "confidence-cell")
+    addTextCell(tr, row.failure_reason)
 
     const notesCell = document.createElement("td")
     const notes = document.createElement("input")
@@ -708,32 +752,6 @@ export default function (component) {
     notes.oninput = persistDraft
     notesCell.appendChild(notes)
     tr.appendChild(notesCell)
-
-    const needsCell = document.createElement("td")
-    needsCell.className = "center"
-    const needs = document.createElement("input")
-    needs.type = "checkbox"
-    needs.checked = Boolean(row.needs_context)
-    needs.disabled = !row.editable
-    needs.dataset.field = "needs_context"
-    needsCell.appendChild(needs)
-    tr.appendChild(needsCell)
-
-    const keepCell = document.createElement("td")
-    keepCell.className = "center keep-source-cell"
-    const keep = document.createElement("button")
-    keep.type = "button"
-    keep.className = "use-fix keep-source-toggle"
-    keep.disabled = !row.editable
-    keep.dataset.field = "keep_source"
-    const setKeepState = (active) => {
-      keep.classList.toggle("active", active)
-      keep.textContent = active ? "Source text kept" : "Keep source text"
-      keep.setAttribute("aria-pressed", String(active))
-    }
-    setKeepState(Boolean(row.keep_source))
-    keepCell.appendChild(keep)
-    tr.appendChild(keepCell)
 
     needs.onchange = () => {
       if (needs.checked) setKeepState(false)
@@ -780,11 +798,9 @@ export default function (component) {
   const changeView = () => {
     persistDraft()
     setTriggerValue("view", {
-      review_mode: reviewMode?.value ?? "Needs context queue",
       sort_by: sortBy?.value ?? "Story context order",
     })
   }
-  if (reviewMode) reviewMode.onchange = changeView
   if (sortBy) sortBy.onchange = changeView
 
   const closeButton = detailsPanel?.querySelector(".close-details")
@@ -2111,8 +2127,8 @@ def translation_setup_drawer(document_id: str) -> None:
         st.rerun()
 
 
-def preview_game_plan(document_id: str) -> None:
-    """Validate the current setup and report the pre-run estimate in Conversation."""
+def preview_translation_plan(document_id: str) -> None:
+    """Validate either workflow and report its pre-run estimate in Conversation."""
     document = st.session_state.documents[document_id]
     abandon_conversation_rerun(document_id)
     if document.get("conversation_action") == "languages":
@@ -2131,17 +2147,34 @@ def preview_game_plan(document_id: str) -> None:
         )
         add_message(document, "assistant", document["plan_preview_error"])
         return
-    if not document.get("game_config"):
-        document["plan_preview"] = None
-        document["plan_preview_error"] = "Finish the game column mapping before previewing the workload."
-        add_message(document, "assistant", document["plan_preview_error"])
-        return
-    estimate = estimate_game_workload(
-        document["dataframe"],
-        GameConfig(**document["game_config"]),
-        languages,
-        document.get("evaluate_style", False),
-    )
+    if document.get("game_mode"):
+        if not document.get("game_config"):
+            document["plan_preview"] = None
+            document["plan_preview_error"] = "Finish the game column mapping before previewing the workload."
+            add_message(document, "assistant", document["plan_preview_error"])
+            return
+        estimate = estimate_game_workload(
+            document["dataframe"],
+            GameConfig(**document["game_config"]),
+            languages,
+            document.get("evaluate_style", False),
+        )
+    else:
+        proposed = [profile.name for profile in document["profiles"] if profile.selected]
+        selected_columns = list(document.get("selected_columns") or proposed)
+        if not selected_columns:
+            document["plan_preview"] = None
+            document["plan_preview_error"] = (
+                "Choose at least one source column in Open Translation Setup before previewing the workload."
+            )
+            add_message(document, "assistant", document["plan_preview_error"])
+            return
+        batch_size = int(os.getenv("TRANSLATION_BATCH_SIZE", "25"))
+        estimate = TranslationAgent(object(), batch_size=batch_size).estimate(
+            document["dataframe"], selected_columns, languages,
+            float(os.getenv("OPENAI_INPUT_COST_PER_MILLION", "0.15")),
+            float(os.getenv("OPENAI_OUTPUT_COST_PER_MILLION", "0.60")),
+        )
     document["plan_preview"] = {
         "prompt": prompt,
         "languages": languages,
@@ -3108,8 +3141,7 @@ def build_failure_triage(
             "Speaker": str(failure.get("speaker", "")),
             "Original": str(failure.get("source", "")),
             "AI translation": "",
-            "Confidence score": 0,
-            "Confidence level": "Failed",
+            "Confidence": "Failed",
             "Failure reason": str(failure.get("error", "")),
             "Final translation": "",
             "Resolution note": RESOLUTION_NOTES[0],
@@ -3454,13 +3486,7 @@ def capture_review_grid_event(document_id: str, component_key: str, event_name: 
     if not document:
         return
     if event_name == "view":
-        review_mode = payload.get("review_mode")
         sort_by = payload.get("sort_by")
-        if review_mode in {
-            "Needs context queue", "QA issue queue", "Low confidence queue",
-            "Edit all translations",
-        }:
-            document["review_mode"] = review_mode
         if sort_by in {
             "Story context order", "Needs context first", "QA issues first",
             "Low confidence first",
@@ -3493,6 +3519,13 @@ def hide_demo_noise_qa(result) -> None:
         result.qa_issues = result.qa_issues[~demo_noise].reset_index(drop=True)
 
 
+def format_length_field(current_text: str, limit_raw: str) -> str:
+    """Render a Length cell as "current / limit", or just the current count with no limit."""
+    current = len(current_text or "")
+    limit = str(limit_raw or "").strip()
+    return f"{current} / {limit}" if limit else str(current)
+
+
 def build_unified_review_report(
     review: pd.DataFrame,
     cards: pd.DataFrame,
@@ -3517,18 +3550,31 @@ def build_unified_review_report(
             "String ID": str(review_row.line_id),
             "Language": str(review_row.language),
             "Speaker": str(review_row.speaker),
-            "Original": str(review_row.source_text),
+            "Original": (
+                f"Keep source · {review_row.source_text}"
+                if str(review_row.status) == "Keep source text"
+                else str(review_row.source_text)
+            ),
+            "Developer note": str(getattr(review_row, "scene_context", "") or ""),
             "AI translation": str(review_row.ai_translation),
-            "Confidence score": int(getattr(card, "confidence", 0)) if card else 0,
-            "Confidence level": str(getattr(card, "confidence_level", "")) if card else "",
+            "Final translation": str(review_row.reviewed_translation),
             "Context review": str(review_row.context_risk),
+            "Needs context": (
+                "Yes" if str(review_row.status) == "Needs context" else ""
+            ),
             "QA issue": str(getattr(review_row, "qa_issue", "")),
             "Suggested fix": str(getattr(review_row, "suggested_fix", "")),
+            "Length": format_length_field(
+                str(review_row.reviewed_translation), getattr(review_row, "character_limit", "")
+            ),
+            "Confidence": (
+                f"{getattr(card, 'confidence_level', '') or 'Unknown'} · {int(getattr(card, 'confidence', 0))}%"
+                if card else ""
+            ),
             "Failure reason": failure_lookup.get(key, ""),
             "Available context and provenance": (
                 str(getattr(card, "context_sources", "")) if card else ""
             ),
-            "Final translation": str(review_row.reviewed_translation),
             "Resolution note": "",
         })
     return pd.DataFrame(rows, columns=REVIEW_REPORT_COLUMNS)
@@ -3625,16 +3671,15 @@ def render_game_review(document: dict, result) -> None:
         axis=1,
     )
     edited = review.copy()
-    if document.get("review_grid_version") != 2:
+    if document.get("review_grid_version") != 3:
         edited.loc[:, "selected"] = False
-        document["review_grid_version"] = 2
+        document["review_grid_version"] = 3
         document["review_table"] = edited
     cards = build_translation_cards(
         document["dataframe"], result, edited, glossary_entries
     )
 
     with st.container(border=False, key="review_directory_panel"):
-            review_mode = document.get("review_mode", "")
             sort_by = document.get("review_sort", "Story context order")
             all_ordered = edited.sort_values(["row_position", "language"], kind="stable")
             system_context_risk = (
@@ -3654,25 +3699,7 @@ def render_game_review(document: dict, result) -> None:
                     failure_lookup[(int(key[0]), str(key[1]))] = "; ".join(
                         dict.fromkeys(group["error"].fillna("").astype(str))
                     )
-            if not review_mode:
-                review_mode = (
-                    "Needs context queue"
-                    if risk_indexes
-                    else "QA issue queue" if qa_indexes
-                    else "Low confidence queue" if low_confidence_indexes
-                    else "Edit all translations"
-                )
-                document["review_mode"] = review_mode
-            queue_only = review_mode in {
-                "Needs context queue", "QA issue queue", "Low confidence queue"
-            }
-            editable_indexes = (
-                risk_indexes
-                if review_mode == "Needs context queue"
-                else qa_indexes if review_mode == "QA issue queue"
-                else low_confidence_indexes if review_mode == "Low confidence queue"
-                else set(all_ordered.index)
-            )
+            editable_indexes = set(all_ordered.index)
             if sort_by == "Needs context first":
                 all_ordered = (
                     all_ordered.assign(
@@ -3707,6 +3734,12 @@ def render_game_review(document: dict, result) -> None:
                     )
                     .drop(columns="_low_confidence_first")
                 )
+            if not all_ordered.empty and not all_ordered["selected"].fillna(False).any():
+                default_index = all_ordered.index[0]
+                edited.loc[:, "selected"] = False
+                edited.at[default_index, "selected"] = True
+                all_ordered.at[default_index, "selected"] = True
+                document["review_table"] = edited
             ordered = all_ordered.copy()
             navigation = pd.DataFrame({
                 "Rerun": ordered["rerun_selected"].fillna(False).astype(bool),
@@ -3727,24 +3760,24 @@ def render_game_review(document: dict, result) -> None:
                     ),
                     axis=1,
                 ),
+                "Final translation": ordered["reviewed_translation"].fillna(""),
+                "Keep source text": ordered["status"].eq("Keep source text"),
+                "Context review": ordered["context_risk"].fillna(""),
+                "Needs context": ordered["status"].eq("Needs context"),
+                "QA issue": ordered["qa_issue"].fillna(""),
+                "Suggested fix": ordered["suggested_fix"].fillna(""),
                 "Confidence score": ordered.apply(
                     lambda row: f"{int(row.get('confidence') or 0)}%",
                     axis=1,
                 ),
                 "Confidence level": ordered["confidence_level"].fillna(""),
-                "Context review": ordered["context_risk"].fillna(""),
-                "QA issue": ordered["qa_issue"].fillna(""),
-                "Suggested fix": ordered["suggested_fix"].fillna(""),
                 "Failure reason": ordered.apply(
                     lambda row: failure_lookup.get(
                         (int(row["row_position"]), str(row["language"])), ""
                     ),
                     axis=1,
                 ),
-                "Final translation": ordered["reviewed_translation"].fillna(""),
                 "Notes": ordered["reviewer_comment"].fillna(""),
-                "Needs context": ordered["status"].eq("Needs context"),
-                "Keep source text": ordered["status"].eq("Keep source text"),
             })
 
             submitted = None
@@ -3796,9 +3829,8 @@ def render_game_review(document: dict, result) -> None:
                             f"{review_row.get('listener') or 'Unknown'}"
                         ),
                         "emotion": str(review_row.get("emotion") or "Not provided"),
-                        "developer_note": str(
-                            review_row.get("scene_context") or "Not provided"
-                        ),
+                        "developer_note": str(review_row.get("scene_context") or ""),
+                        "character_limit": str(review_row.get("character_limit") or ""),
                         "context_sources": str(
                             getattr(card, "context_sources", "") if card else ""
                         ),
@@ -3812,9 +3844,9 @@ def render_game_review(document: dict, result) -> None:
                     data={
                         "rows": component_rows,
                         "storage_key": (
-                            f"{document['id']}:{document.get('review_version', 0)}"
+                            f"{document['id']}:{document.get('review_version', 0)}:"
+                            f"grid-{document.get('review_grid_version', 3)}"
                         ),
-                        "review_mode": review_mode,
                         "sort_by": sort_by,
                         "characters": sorted(
                             value for value in review["speaker"].dropna().astype(str).unique()
@@ -3940,10 +3972,7 @@ def render_game_review(document: dict, result) -> None:
 
             document["review_table"] = edited
             if blocked_change:
-                st.warning(
-                    f"That row is read-only in {review_mode}. "
-                    "Choose Edit all translations to edit it."
-                )
+                st.warning("That review change could not be applied. Reload the workbench and try again.")
             if document.pop("pending_review_targeted_rerun", False):
                 rerun_scope = (
                     str(submitted.get("scope", "Selected lines"))
@@ -4007,15 +4036,7 @@ def render_game_review(document: dict, result) -> None:
                 f"{len(navigation)} row(s) · "
                 f"{int(system_context_risk.sum())} context review suggested · "
                 f"{int(reviewer_needs_context.sum())} marked Needs context · "
-                + (
-                    "context-review rows are editable; other rows are locked · "
-                    if review_mode == "Needs context queue"
-                    else "QA-flagged rows are editable; other rows are locked · "
-                    if review_mode == "QA issue queue"
-                    else "low-confidence rows are editable; other rows are locked · "
-                    if review_mode == "Low confidence queue"
-                    else "all rows are editable · "
-                )
+                "all rows are editable · "
                 + (
                     "Story context order keeps neighboring dialogue interleaved"
                     if sort_by == "Story context order"
@@ -4054,6 +4075,81 @@ def localization_review_drawer(document_id: str) -> None:
     render_game_review(document, result)
 
 
+def build_generic_review_table(result) -> pd.DataFrame:
+    """Normalize a general CSV result into the same review-oriented reading model."""
+    failure_keys = set()
+    if result.failures is not None and not result.failures.empty:
+        failure_keys = {
+            (str(row.get("column", "")), str(row.get("language", "")), str(row.get("source", "")))
+            for _, row in result.failures.iterrows()
+        }
+    rows: list[dict] = []
+    for position, (_, source_row) in enumerate(result.dataframe.iterrows(), start=1):
+        for source_column in result.source_columns:
+            original = "" if pd.isna(source_row[source_column]) else str(source_row[source_column])
+            if not original.strip():
+                continue
+            for language in result.target_languages:
+                translated_column = f"{source_column}__{safe_column_suffix(language)}"
+                translation = (
+                    "" if translated_column not in result.dataframe.columns or pd.isna(source_row[translated_column])
+                    else str(source_row[translated_column])
+                )
+                failed = (source_column, language, original) in failure_keys
+                rows.append({
+                    "Row": position,
+                    "Source column": source_column,
+                    "Language": language,
+                    "Original": original,
+                    "AI translation": translation,
+                    "Status": "Failed" if failed else "Translated",
+                })
+    return pd.DataFrame(rows)
+
+
+@st.dialog(" ", width="large", on_dismiss="rerun")
+def generic_translation_review_drawer(document_id: str) -> None:
+    """Review and download a non-game translation without returning to the legacy preview."""
+    document = st.session_state.documents[document_id]
+    result = document.get("result")
+    if result is None:
+        st.info("Run a translation before opening the review workbench.")
+        return
+    title_column, summary_column, download_column = st.columns(
+        [2.2, 4.8, 1], vertical_alignment="center"
+    )
+    title_column.markdown("### Localization review workbench")
+    summary_column.caption(
+        f"{len(result.dataframe):,} source row(s) · "
+        f"{len(result.source_columns)} translated column(s) · "
+        f"{len(result.target_languages)} target language(s)"
+    )
+    with download_column:
+        st.download_button(
+            "Download CSV",
+            result.dataframe.to_csv(index=False).encode("utf-8-sig"),
+            file_name="translated.csv",
+            mime="text/csv",
+            width="content",
+        )
+    review_table = build_generic_review_table(result)
+    st.dataframe(
+        review_table,
+        hide_index=True,
+        width="stretch",
+        height=min(680, 42 + max(len(review_table), 1) * 35),
+        column_config={
+            "Row": st.column_config.NumberColumn("Row", format="%d"),
+            "Source column": st.column_config.TextColumn("Source column"),
+            "Language": st.column_config.TextColumn("Language"),
+            "Original": st.column_config.TextColumn("Original", width="large"),
+            "AI translation": st.column_config.TextColumn("AI translation", width="large"),
+            "Status": st.column_config.TextColumn("Status"),
+        },
+    )
+    render_quality_review(document, result)
+
+
 def render_game_review_launcher(document: dict, result) -> None:
     hide_demo_noise_qa(result)
     review = build_review_table(
@@ -4085,6 +4181,20 @@ def render_game_review_launcher(document: dict, result) -> None:
         f"{len(approved_translation_memory(review))} project TM entrie(s)."
     )
     render_game_review_actions(document, result, review, cards)
+
+
+def render_generic_review_launcher(result) -> None:
+    """Keep the non-game result in the same persistent workspace hierarchy."""
+    st.markdown("**Localization review workbench**")
+    first, second, third, fourth = st.columns(4)
+    first.metric("Source rows", len(result.dataframe))
+    second.metric("Source columns", len(result.source_columns))
+    third.metric("Languages", len(result.target_languages))
+    fourth.metric("Failed value", len(result.failures))
+    st.caption(
+        "Open the review workbench from Conversation to compare original and translated values, "
+        "run a quality spot check, and download the CSV."
+    )
 
 
 def render_result(result, document: dict) -> None:
@@ -4133,16 +4243,16 @@ def render_conversation_result_actions(
             ):
                 localization_review_drawer(document["id"])
         else:
-            st.download_button(
-                "Download translated CSV",
-                result.dataframe.to_csv(index=False).encode("utf-8-sig"),
-                file_name="translated.csv",
-                mime="text/csv",
-                type="secondary",
+            if st.button(
+                "Open localization review",
+                key=f"open_generic_review_{document['id']}",
+                icon=":material/table_view:",
+                type="primary",
                 width="stretch",
                 on_click=cancel_glossary_before_review,
                 args=(document["id"],),
-            )
+            ):
+                generic_translation_review_drawer(document["id"])
     with retry_column:
         st.button(
             "Targeted rerun",
@@ -4157,8 +4267,82 @@ def render_conversation_result_actions(
         )
 
 
+def render_generic_conversation_action_tray(document: dict, active_job: dict) -> None:
+    """Use the current Conversation controls for a non-game CSV without game-only actions."""
+    document_id = document["id"]
+    has_result = document.get("result") is not None
+    has_languages = bool(document.get("target_languages"))
+    first_row = st.columns(3)
+
+    with first_row[0], st.container(key="translation_upload_action"):
+        st.button(
+            "Update translation data",
+            key=f"open_translation_upload_{document_id}",
+            type="secondary",
+            icon=":material/upload_file:",
+            width="stretch",
+            disabled=active_job["state"] in {"running", "cancelling"},
+            help="Replace the source CSV while keeping its glossary, target languages, and conversation.",
+            on_click=open_conversation_action,
+            args=(document_id, "translation_upload"),
+        )
+    with first_row[1]:
+        st.button(
+            "Add language" if has_result else "Target languages ✓" if has_languages else "Target languages",
+            key=f"open_conversation_languages_{document_id}",
+            type="secondary" if has_languages else "primary",
+            icon=":material/language:",
+            width="stretch",
+            on_click=open_conversation_action,
+            args=(document_id, "languages"),
+        )
+    with first_row[2]:
+        st.button(
+            "Update glossary"
+            if str(document.get("glossary_text", "")).strip()
+            else "Add glossary" if has_result else "Glossary",
+            key=f"open_conversation_glossary_{document_id}",
+            icon=":material/book_2:",
+            width="stretch",
+            on_click=open_conversation_action,
+            args=(document_id, "glossary"),
+        )
+
+    if has_result:
+        second_row = st.columns(2)
+        render_conversation_result_actions(
+            document, document["result"],
+            primary_action=second_row[0], retry_column=second_row[1],
+        )
+    elif has_languages:
+        second_row = st.columns(2)
+        with second_row[0]:
+            st.button(
+                "Preview cost",
+                key=f"preview_translation_plan_{document_id}",
+                width="stretch",
+                disabled=active_job["state"] in {"running", "cancelling"},
+                on_click=preview_translation_plan,
+                args=(document_id,),
+            )
+        with second_row[1]:
+            st.button(
+                "Translate",
+                key=f"translate_{document_id}",
+                type="primary",
+                icon=":material/translate:",
+                width="stretch",
+                disabled=active_job["state"] in {"running", "cancelling"},
+                on_click=request_translation,
+                args=(document_id,),
+            )
+
+
 def render_conversation_action_tray(document: dict, active_job: dict) -> None:
     """Render stable project actions above the pinned native chat input."""
+    if not document.get("game_mode"):
+        render_generic_conversation_action_tray(document, active_job)
+        return
     document_id = document["id"]
     has_translation_result = document.get("result") is not None
     current_config = (
@@ -4246,7 +4430,7 @@ def render_conversation_action_tray(document: dict, active_job: dict) -> None:
                         key=f"preview_game_plan_{document_id}",
                         width="stretch",
                         disabled=active_job["state"] in {"running", "cancelling"},
-                        on_click=preview_game_plan,
+                        on_click=preview_translation_plan,
                         args=(document_id,),
                     )
             if not has_translation_result:
@@ -4293,9 +4477,7 @@ def render_post_setup_result(result, document: dict) -> None:
     if result.game_config:
         render_game_review_launcher(document, result)
     else:
-        st.markdown("**Preview**")
-        st.dataframe(result.dataframe.head(30), width="stretch")
-        render_quality_review(document, result)
+        render_generic_review_launcher(result)
 
 
 def open_new_project_upload() -> None:
