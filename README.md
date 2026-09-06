@@ -307,6 +307,7 @@ No key is sent to the browser or stored in the output CSV.
 - **Escalate-on-signal model routing over a learned router:** a stronger model kicks in only for retries and rows with an existing deterministic risk signal (text length, or game mode's context-risk flags), so most volume stays on the cheap model. It is coarser than a trained routing model, but it is free, explainable, and reuses signals the app already computes.
 - **Sampled back-translation over a full second pass:** checking every line would double translation cost. Sampling a configurable slice keeps the hallucination signal directionally useful without doubling the job's cost, at the price of not catching every drifted line.
 - **Hand-rolled state graph over LangGraph for batch retry/split:** the graph is small, fully deterministic, and needs no persistence or human-in-the-loop interrupts, so the dependency would not earn its cost yet; see "Model routing and orchestration" above for where that would change.
+- **Fully materialized review grid over pagination/virtualization:** the whole translated dataset renders as one editable table so every row is reachable, sortable, and reruns-in-place without a page boundary hiding related lines. This is fast for the sizes this assessment targets (dozens to a few hundred rows) but scales linearly with row count; a document with several thousand rows would benefit from paginating or virtualizing the grid next.
 
 ## Scaling and production improvements
 
