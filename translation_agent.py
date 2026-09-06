@@ -371,12 +371,21 @@ class OpenAITranslationBackend:
             raise ProviderTranslationError("The translation service could not be reached in time. Please retry.", retryable=True) from error
         except APIError as error:
             raise ProviderTranslationError(f"The translation service returned an error: {error}", retryable=True) from error
-        data = json.loads(response.choices[0].message.content)
+        raw_content = response.choices[0].message.content
+        finish_reason = response.choices[0].finish_reason
+        data = json.loads(raw_content)
         if not isinstance(data, dict) or set(data) != set(payload):
-            raise ValueError("Model response keys did not match the requested batch")
+            raise ValueError(
+                f"Model response keys did not match the requested batch "
+                f"(finish_reason={finish_reason!r}, expected_keys={sorted(payload)}, "
+                f"raw_response={raw_content!r})"
+            )
         translated = [data[str(index)] for index in range(len(texts))]
         if any(not isinstance(value, str) or (texts[index].strip() and not value.strip()) for index, value in enumerate(translated)):
-            raise ValueError("Model returned a missing or non-text translation")
+            raise ValueError(
+                f"Model returned a missing or non-text translation "
+                f"(finish_reason={finish_reason!r}, raw_response={raw_content!r})"
+            )
         return translated
 
     def translate_game(self, records: Sequence[dict], target_language: str, *, model: str | None = None) -> list[str]:
@@ -410,12 +419,21 @@ class OpenAITranslationBackend:
             raise ProviderTranslationError("The translation service could not be reached in time. Please retry.", retryable=True) from error
         except APIError as error:
             raise ProviderTranslationError(f"The translation service returned an error: {error}", retryable=True) from error
-        data = json.loads(response.choices[0].message.content)
+        raw_content = response.choices[0].message.content
+        finish_reason = response.choices[0].finish_reason
+        data = json.loads(raw_content)
         if not isinstance(data, dict) or set(data) != set(payload):
-            raise ValueError("Model response keys did not match the requested game batch")
+            raise ValueError(
+                f"Model response keys did not match the requested game batch "
+                f"(finish_reason={finish_reason!r}, expected_keys={sorted(payload)}, "
+                f"raw_response={raw_content!r})"
+            )
         values = [data[str(index)] for index in range(len(records))]
         if any(not isinstance(value, str) or not value.strip() for value in values):
-            raise ValueError("Model returned a missing game translation")
+            raise ValueError(
+                f"Model returned a missing game translation "
+                f"(finish_reason={finish_reason!r}, raw_response={raw_content!r})"
+            )
         return values
 
     def evaluate_game_style(
