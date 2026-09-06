@@ -23,6 +23,10 @@ from openai import (
 )
 
 
+PROMPT_VERSION = "v1"
+"""Bump this whenever the system prompts in OpenAITranslationBackend change wording, so a
+run recorded before/after a prompt edit can be told apart in the execution history."""
+
 CHINESE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 JAPANESE_KANA_RE = re.compile(r"[\u3040-\u30ff]")
 URL_OR_EMAIL_RE = re.compile(r"https?://\S+|www\.\S+|[\w.+-]+@[\w.-]+\.\w+", re.I)

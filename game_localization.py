@@ -1010,11 +1010,10 @@ def build_translation_cards(
             )
         elif record["scene_id"]:
             sources.append("Related strings: None found")
-        if glossary_hits:
-            sources.append("Glossary: " + "; ".join(glossary_hits))
+        # Glossary and TM hits are surfaced as their own Details fields (glossary_hits,
+        # tm_match) rather than folded into this prose summary, to avoid showing the
+        # same fact twice in the compact panel.
         tm_translation = memory.get((source, language), "")
-        if tm_translation:
-            sources.append(f"Approved project TM exact match: {tm_translation}")
 
         risk = risks.get(position, "")
         qa_items = [item for item in qa_lookup.get((position, language), "").split("; ") if item]

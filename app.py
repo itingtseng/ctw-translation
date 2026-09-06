@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import getpass
 import hashlib
 import importlib
 import math
@@ -29,6 +30,7 @@ from translation_agent import (
     DemoTranslationBackend,
     GlossaryEntry,
     OpenAITranslationBackend,
+    PROMPT_VERSION,
     TranslationAgent,
     TranslationCancelled,
     WorkloadEstimate,
@@ -586,6 +588,7 @@ export default function (component) {
       ["Glossary hits", row.glossary_hits],
       ["TM matches", row.tm_match],
       ["Placeholder details", row.placeholder_details],
+      ["Glossary & protected terms", row.glossary_rules],
     ].forEach(([label, value]) => {
       const field = document.createElement("div")
       field.className = "details-field"
@@ -850,6 +853,14 @@ def hallucination_check_enabled() -> bool:
     return os.getenv("TRANSLATION_HALLUCINATION_CHECK", "").lower() in {"1", "true", "yes", "on"}
 
 
+def modified_by() -> str:
+    """Stand in for a real authenticated identity; this app has no multi-user login."""
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "unknown"
+
+
 def glossary_signature(entries: list[GlossaryEntry]) -> str:
     canonical = "\n".join(
         f"{entry.source}|{entry.target_language or ''}|{entry.translation or ''}|{entry.term_type}|{entry.notes}"
@@ -1095,6 +1106,8 @@ class BackgroundJobManager:
             "glossary_entries": len(glossary),
             "glossary_signature": glossary_signature(glossary),
             "glossary_revision": glossary_revision,
+            "prompt_version": PROMPT_VERSION,
+            "modified_by": modified_by(),
             "game_mode": game_config is not None,
             "style_evaluation": evaluate_style,
             "full_glossary_application": (
@@ -1961,7 +1974,7 @@ def render_glossary_summary(document_id: str) -> None:
     entries, _ = parse_glossary(document.get("glossary_text", ""))
     with st.container(border=True, key=f"glossary_summary_{document_id}"):
         title_column, rules_column, language_column = st.columns([2, 1, 1])
-        title_column.markdown("**Terminology rules**  \nGlossary & protected terms")
+        title_column.markdown(f"**Terminology rules**  \nGlossary version {document.get('glossary_revision', 0)}")
         rules_column.metric("Rules", len(entries))
         languages = {entry.target_language for entry in entries if entry.target_language}
         language_column.metric("Languages", len(languages))
@@ -2755,9 +2768,12 @@ def append_run_record(document: dict, status: dict, outcome: str, result=None, e
         "Outcome": outcome,
         "Mode": metadata.get("mode", "translation"),
         "Model": metadata.get("model", ""),
+        "Prompt version": metadata.get("prompt_version", ""),
+        "Modified by": metadata.get("modified_by", ""),
         "Languages": metadata.get("languages", ""),
         "Columns": metadata.get("columns", ""),
         "Glossary": metadata.get("glossary_entries", 0),
+        "Glossary version": metadata.get("glossary_revision", 0),
         "Est. tokens": metadata.get("estimated_input_tokens", 0) + metadata.get("estimated_output_tokens", 0),
         "Est. cost (USD)": metadata.get("estimated_cost_usd", 0.0),
         "API calls": getattr(metrics, "api_calls", 0),
@@ -3678,6 +3694,11 @@ def render_game_review(document: dict, result) -> None:
     cards = build_translation_cards(
         document["dataframe"], result, review, glossary_entries
     )
+    glossary_rules_text = "; ".join(
+        f"{entry.source} (preserve)" if entry.preserves_source
+        else f"{entry.source} → {entry.translation} ({entry.target_language})"
+        for entry in glossary_entries
+    ) or "No terminology rules configured."
     review = review.copy()
     card_confidence = {
         (int(row.row_position), str(row.language)): (int(row.confidence), str(row.confidence_level))
@@ -3856,6 +3877,7 @@ def render_game_review(document: dict, result) -> None:
                         "placeholder_details": str(review_row.get("placeholder_details") or ""),
                         "glossary_hits": str(getattr(card, "glossary_hits", "") if card else ""),
                         "tm_match": str(getattr(card, "tm_match", "") if card else ""),
+                        "glossary_rules": glossary_rules_text,
                         "context_sources": str(
                             getattr(card, "context_sources", "") if card else ""
                         ),
