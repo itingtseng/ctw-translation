@@ -7,7 +7,7 @@ The implementation is deliberately lean: Streamlit for interaction, pandas for d
 ## Quick start (2 minutes)
 
 1. Open the app.
-2. Upload `large_context_localization_demo.csv` as the translation data, then upload its matching `large_context_character_bible_demo.csv` as the Character Bible. This is the recommended interview demo: 120 Chinese dialogue rows with linked scenes, character context, and deliberate context-review cases.
+2. Upload [`samples/interview/large_context_localization_demo.csv`](samples/interview/large_context_localization_demo.csv) as the translation data, then upload its matching [`samples/interview/large_context_character_bible_demo.csv`](samples/interview/large_context_character_bible_demo.csv) as the Character Bible. This is the recommended interview demo: 120 Chinese dialogue rows with linked scenes, character context, and deliberate context-review cases.
 3. Type `Translate to English and Japanese` in the chat.
 4. Preview the result, then download the translated CSV.
 
@@ -31,7 +31,7 @@ The interface uses Streamlit's native `st.chat_message`, `st.chat_input`, bottom
 
 Terminology rules are opened from the guided Conversation step. `Rerun with current glossary` stays hidden until a completed result exists and the user has entered glossary content; it then appears beside `Apply glossary` and becomes available only after the change validates successfully.
 
-The included `sample_products.csv` has 120 data rows for a quick assessment demo.
+The additional example [`samples/additional-examples/sample_products.csv`](samples/additional-examples/sample_products.csv) has 120 data rows for a quick non-game assessment demo.
 
 ## Mobile-game localization mode
 
@@ -52,7 +52,7 @@ Recommended dialogue schema:
 | `character_limit` / `char_limit` / `max_length` | Optional target UI limit |
 | `status`, `platform`, `plural`, `screenshot_reference` | Preserved workflow metadata |
 
-The included `string_package_context_demo.csv` shows a realistic `key + source + target + context + limit` delivery, with `string_package_character_bible_demo.csv` providing optional guidance for Mira. `large_context_localization_demo.csv` provides a 120-line Chinese test package: 12 ordered scenes, five characters, speaker/listener relationships, emotions, contextual pronouns, developer notes, placeholders, protected item codes, and character limits. Four deliberately ambiguous `打開它。` rows omit scene, listener, emotion, and developer context so the deterministic Context review queue is non-zero without artificially lowering confidence. Import its matching `large_context_character_bible_demo.csv`; it contains complete guidance for Luna, Player, Commander, Merchant, and Mira. Generic speaker labels such as `System`, `UI`, `Narrator`, and `Tutorial` do not trigger missing-character-guidance warnings. `game_dialogue_demo.csv` and `character_bible_demo.csv` exercise the richer character-dialogue mode.
+The included [`samples/additional-examples/string_package_context_demo.csv`](samples/additional-examples/string_package_context_demo.csv) shows a realistic `key + source + target + context + limit` delivery, with [`samples/additional-examples/string_package_character_bible_demo.csv`](samples/additional-examples/string_package_character_bible_demo.csv) providing optional guidance for Mira. [`samples/interview/large_context_localization_demo.csv`](samples/interview/large_context_localization_demo.csv) provides a 120-line Chinese test package: 12 ordered scenes, five characters, speaker/listener relationships, emotions, contextual pronouns, developer notes, placeholders, protected item codes, and character limits. Four deliberately ambiguous `打開它。` rows omit scene, listener, emotion, and developer context so the deterministic Context review queue is non-zero without artificially lowering confidence. Import its matching [`samples/interview/large_context_character_bible_demo.csv`](samples/interview/large_context_character_bible_demo.csv); it contains complete guidance for Luna, Player, Commander, Merchant, and Mira. Generic speaker labels such as `System`, `UI`, `Narrator`, and `Tutorial` do not trigger missing-character-guidance warnings. [`samples/additional-examples/game_dialogue_demo.csv`](samples/additional-examples/game_dialogue_demo.csv) and [`samples/additional-examples/character_bible_demo.csv`](samples/additional-examples/character_bible_demo.csv) exercise the smaller character-dialogue example.
 
 Before translation, the setup panel shows the exact scene + speaker work units. After typing target languages in Conversation, **Preview workload & cost** calculates translation values, batches, tokens, and cost without starting the job. Game batches follow those work-unit boundaries while each row still carries its previous/next dialogue context.
 
@@ -186,7 +186,7 @@ The app then verifies that:
 - the number of appended columns equals `selected columns × target languages`;
 - translated unique-value coverage equals successful unique values divided by requested unique values.
 
-Coverage is an operational completeness metric, not a semantic quality score. The UI therefore includes a separate deterministic translation sample that reviewers can mark `Correct` or `Needs revision`, producing a human acceptance rate. Game mode adds an optional, sampled **back-translation check** (`evaluate_hallucination=True`, off by default): a slice of translated lines is round-tripped back into the detected source language and compared to the original with a character-level similarity ratio; anything below the threshold is surfaced as a `possible_hallucination` QA flag through the same review queue as any other QA issue, and lowers that line's confidence score. It is a cheap, deterministic proxy for meaning drift, not a labeled-set metric, and it costs one extra model call per sampled line, so it stays opt-in. Production quality evaluation should additionally use a labeled multilingual test set and metrics appropriate to the content: human adequacy/fluency review, terminology accuracy, COMET or BLEURT, segmented by language, field, content length, and model version. [`eval_set.csv`](eval_set.csv) and [`evaluate.py`](evaluate.py) are a small step in that direction — a hand-labeled 16-line gold set plus a standalone harness that scores a candidate model/prompt's raw output on exact-match rate, similarity, placeholder preservation, and glossary compliance before it is trusted enough to sit behind this project's deterministic protection layer. Run it with `python evaluate.py`; `tests/test_evaluation.py` asserts the harness actually catches two seeded regressions rather than trivially reporting 0% or 100%.
+Coverage is an operational completeness metric, not a semantic quality score. The UI therefore includes a separate deterministic translation sample that reviewers can mark `Correct` or `Needs revision`, producing a human acceptance rate. Game mode adds an optional, sampled **back-translation check** (`evaluate_hallucination=True`, off by default): a slice of translated lines is round-tripped back into the detected source language and compared to the original with a character-level similarity ratio; anything below the threshold is surfaced as a `possible_hallucination` QA flag through the same review queue as any other QA issue, and lowers that line's confidence score. It is a cheap, deterministic proxy for meaning drift, not a labeled-set metric, and it costs one extra model call per sampled line, so it stays opt-in. Production quality evaluation should additionally use a labeled multilingual test set and metrics appropriate to the content: human adequacy/fluency review, terminology accuracy, COMET or BLEURT, segmented by language, field, content length, and model version. [`evaluation/eval_set.csv`](evaluation/eval_set.csv) and [`evaluate.py`](evaluate.py) are a small step in that direction — a hand-labeled 16-line gold set plus a standalone harness that scores a candidate model/prompt's raw output on exact-match rate, similarity, placeholder preservation, and glossary compliance before it is trusted enough to sit behind this project's deterministic protection layer. Run it with `python evaluate.py`; `tests/test_evaluation.py` asserts the harness actually catches two seeded regressions rather than trivially reporting 0% or 100%.
 
 Every attempt records timestamps, outcome, mode, model, languages, columns, glossary count, estimated tokens/cost, API calls, coverage, duration, and error detail. This execution history can be downloaded as CSV. Cost is deliberately labeled as an estimate: characters are converted to approximate tokens, batch prompt overhead is included, and rates are configurable because provider billing can change.
 
@@ -248,7 +248,7 @@ export DEMO_TRANSLATION_DELAY_SECONDS="1"
 streamlit run app.py
 ```
 
-Upload `feature_test.csv` and translate it. The first run creates a downloadable failure; choosing **Retry failed values only** sends only the failed values, and the Demo backend allows that retry to succeed automatically. Disable the mode before real translation:
+Upload [`samples/feature-tests/feature_test.csv`](samples/feature-tests/feature_test.csv) and translate it. The first run creates a downloadable failure; choosing **Retry failed values only** sends only the failed values, and the Demo backend allows that retry to succeed automatically. Disable the mode before real translation:
 
 ```bash
 unset TRANSLATION_DEMO_MODE
@@ -274,11 +274,11 @@ pytest -q
 
 The suite covers Chinese-column detection, conversational multi-language parsing, protected tokens, glossary enforcement, workload/cost estimation, cancellation, a 125-row multi-language batch, source preservation, partial-failure degradation, targeted retry, background execution, file switching, per-file draft recovery, model-routing escalation (on retry and on a deterministic complexity/context-risk signal), the state-graph event trace, the sampled back-translation check, and the standalone evaluation harness (`python evaluate.py` for a printed report).
 
-For a live smoke test, run the app with an API key, upload `sample_products.csv`, keep `product_name` and `category` selected, and enter `Translate to English and Japanese`.
+For a live smoke test, run the app with an API key, upload [`samples/additional-examples/sample_products.csv`](samples/additional-examples/sample_products.csv), keep `product_name` and `category` selected, and enter `Translate to English and Japanese`.
 
-For a no-cost game workflow test, enable Demo Mode, upload `game_dialogue_demo.csv`, import `character_bible_demo.csv`, optionally enable AI style evaluation, and enter `Translate to English and Japanese`. Review/edit rows, approve at least one line, select another line, and exercise each targeted rerun scope. Demo output is synthetic but uses the complete context, QA, review, locking, and export pipeline.
+For a no-cost game workflow test, enable Demo Mode, upload [`samples/additional-examples/game_dialogue_demo.csv`](samples/additional-examples/game_dialogue_demo.csv), import [`samples/additional-examples/character_bible_demo.csv`](samples/additional-examples/character_bible_demo.csv), optionally enable AI style evaluation, and enter `Translate to English and Japanese`. Review/edit rows, approve at least one line, select another line, and exercise each targeted rerun scope. Demo output is synthetic but uses the complete context, QA, review, locking, and export pipeline.
 
-For game failure recovery, upload `game_failure_test.csv` in Demo Mode and translate it to English. The line containing `[FAIL]` fails on the first run while the other lines succeed. Use **Retry failed values only**; the artificial failure is disabled for that targeted retry, coverage returns to 100%, and successful lines are not translated again.
+For game failure recovery, upload [`samples/feature-tests/game_failure_test.csv`](samples/feature-tests/game_failure_test.csv) in Demo Mode and translate it to English. The line containing `[FAIL]` fails on the first run while the other lines succeed. Use **Retry failed values only**; the artificial failure is disabled for that targeted retry, coverage returns to 100%, and successful lines are not translated again.
 
 The failure report is also an interactive triage table. When failures exist, it appears immediately after the result summary, followed by the expanded **Translation setup**, and then the localization review workbench. Reviewers do not classify a separate action: the app detects a Character Bible edit, an applied glossary change, or a manual translation. The reviewer manually selects a structured **Resolution note** such as `Character voice adjusted`, `Terminology corrected`, or `Translated manually by reviewer`; selecting `Source text kept intentionally` directly performs the Skip behavior, so no separate Skip control is needed. **Apply resolution** stays disabled until both a real resolution and its note are present. Applied decisions remain visible in Failure resolution history.
 
@@ -321,30 +321,44 @@ For larger or business-critical jobs, the next steps would be:
 - add automatic language identification at cell level for mixed-language columns;
 - store no uploaded content by default, encrypt temporary data, redact logs, and define retention controls;
 - add authentication, tenant isolation, audit logs, observability, and alerts for latency, cost, coverage, and quality drift;
-- grow `eval_set.csv` into a versioned, per-language evaluation set and expand it beyond English;
+- grow `evaluation/eval_set.csv` into a versioned, per-language evaluation set and expand it beyond English;
 - persist reviewer corrections as opt-in evaluation data and use edit-distance/style trends to prioritize prompt or model changes.
 
 ## Project structure
 
 ```text
-app.py                         Streamlit conversation and result UI
-translation_agent.py           Detection, protection, orchestration, model routing, validation, metrics
-game_localization.py            Character context, game QA, review, locking, targeted reruns, back-translation check
-evaluate.py                     Standalone gold-set evaluation harness (exact-match, similarity, placeholder, glossary)
-eval_set.csv                    16-line hand-labeled gold set (English/Japanese) with glossary and placeholder cases
-tests/test_translation_agent.py Deterministic unit and workflow tests
-tests/test_game_localization.py Game mode, review workbench, model routing, and back-translation tests
-tests/test_evaluation.py        Asserts the evaluation harness catches its two seeded regressions
-sample_products.csv             120-row demo input
-feature_test.csv                No-cost UI failure/retry/glossary test input
-game_dialogue_demo.csv           Game dialogue, scene, emotion, tags, limits, placeholders
-game_failure_test.csv            Intentional first-run failure for game retry testing
-qa_review_demo.csv                Four-row Chinese QA review demo with safe-fix, manual-fix, empty, and passing cases
-context_qa_review_demo.csv        Combined Chinese demo with Context-only, QA-only, overlapping, and passing rows
-review_signals_demo.csv           Four-row demo producing Low confidence, Context review, QA issue, and Failed value signals
-character_bible_demo.csv         Example speaker personalities and voice rules
-large_context_localization_demo.csv  120 Chinese lines across 12 linked scenes and five characters, including four deliberate context gaps
-large_context_character_bible_demo.csv  Complete five-character guidance paired with the large context demo
-requirements.txt                Runtime and test dependencies
-requirements-dev.txt            Test-only dependencies
+app.py                    Streamlit conversation and result UI
+translation_agent.py      Detection, protection, orchestration, model routing, validation, metrics
+game_localization.py      Character context, game QA, review, locking, targeted reruns, back-translation check
+evaluate.py               Standalone gold-set evaluation harness
+evaluation/               Labeled offline evaluation data
+samples/
+  interview/              Recommended 120-row interview demo and matching Character Bible
+  feature-tests/          Small deterministic files for QA, context, failure, and preservation testing
+  additional-examples/    Optional product, string-package, and dialogue examples
+tests/                    Automated unit, workflow, UI, and evaluation tests
+requirements.txt          Runtime dependencies
+requirements-dev.txt      Test-only dependencies
 ```
+
+## Sample and test files
+
+Only the two files under `samples/interview/` are needed for the primary interview walkthrough. The remaining files provide small, reproducible checks for individual behaviors.
+
+| File | Purpose |
+|---|---|
+| `samples/interview/large_context_localization_demo.csv` | Recommended 120-row Chinese dialogue demo with linked scenes and deliberate context gaps. |
+| `samples/interview/large_context_character_bible_demo.csv` | Complete five-character guidance paired with the interview dialogue file. |
+| `samples/feature-tests/review_signals_demo.csv` | Produces Low confidence, Context review, QA issue, and Failed value signals in Demo Mode. |
+| `samples/feature-tests/context_qa_review_demo.csv` | Exercises context-only, QA-only, overlapping, and passing review cases. |
+| `samples/feature-tests/qa_review_demo.csv` | Exercises safe suggested fixes, manual fixes, empty output, and a passing row. |
+| `samples/feature-tests/game_failure_test.csv` | Creates one intentional first-run Demo Mode failure for retry and triage testing. |
+| `samples/feature-tests/preservation_test.csv` | Verifies URLs, email addresses, SKUs, order codes, and placeholders remain unchanged. |
+| `samples/feature-tests/feature_test.csv` | Small general UI test for glossary rules, protected values, failure, and retry. |
+| `samples/additional-examples/sample_products.csv` | Non-game 120-row batching and multi-language assessment example. |
+| `samples/additional-examples/game_dialogue_demo.csv` | Small character-dialogue example with scenes, emotion, tags, limits, and placeholders. |
+| `samples/additional-examples/character_bible_demo.csv` | Four-character guidance paired with the small dialogue example. |
+| `samples/additional-examples/integrated_character_bible_demo.csv` | Expanded five-character English guidance retained for comparison and compatibility testing. |
+| `samples/additional-examples/string_package_context_demo.csv` | Realistic string-package example with UI strings, dialogue, plurals, and screenshot references. |
+| `samples/additional-examples/string_package_character_bible_demo.csv` | Mira and Player guidance paired with the string-package example. |
+| `evaluation/eval_set.csv` | Sixteen labeled English/Japanese examples used by `evaluate.py`, not a primary UI demo file. |

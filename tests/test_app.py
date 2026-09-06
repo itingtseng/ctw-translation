@@ -116,7 +116,7 @@ def test_review_grid_offers_qa_review_and_sort_modes():
 
 def test_context_review_report_precedes_qa_report_and_is_downloadable():
     source = pd.read_csv(
-        APP_PATH.parent / "review_signals_demo.csv"
+        APP_PATH.parent / "samples" / "feature-tests" / "review_signals_demo.csv"
     ).fillna("")
     config = GameConfig(
         line_id="key", scene_id="screen", speaker="speaker", listener="listener",

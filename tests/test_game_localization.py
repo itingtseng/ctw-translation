@@ -71,8 +71,12 @@ def character_bible():
 
 def test_large_context_demo_has_complete_matching_character_bible():
     root = Path(__file__).resolve().parents[1]
-    dialogue = pd.read_csv(root / "large_context_localization_demo.csv").fillna("")
-    bible = pd.read_csv(root / "large_context_character_bible_demo.csv").fillna("")
+    dialogue = pd.read_csv(
+        root / "samples" / "interview" / "large_context_localization_demo.csv"
+    ).fillna("")
+    bible = pd.read_csv(
+        root / "samples" / "interview" / "large_context_character_bible_demo.csv"
+    ).fillna("")
     config = infer_game_config(dialogue)
 
     assert validate_character_bible(bible) == []
@@ -92,7 +96,9 @@ def test_large_context_demo_has_complete_matching_character_bible():
 
 def test_qa_review_demo_exposes_issue_fix_and_final_translation_columns():
     root = Path(__file__).resolve().parents[1]
-    source = pd.read_csv(root / "qa_review_demo.csv").fillna("")
+    source = pd.read_csv(
+        root / "samples" / "feature-tests" / "qa_review_demo.csv"
+    ).fillna("")
     config = infer_game_config(source)
     result = GameLocalizationAgent(
         DemoTranslationBackend(delay_seconds=0, failure_marker=None), max_retries=0
@@ -125,7 +131,9 @@ def test_qa_review_demo_exposes_issue_fix_and_final_translation_columns():
 
 def test_context_and_qa_review_demo_contains_both_review_queues():
     root = Path(__file__).resolve().parents[1]
-    source = pd.read_csv(root / "context_qa_review_demo.csv").fillna("")
+    source = pd.read_csv(
+        root / "samples" / "feature-tests" / "context_qa_review_demo.csv"
+    ).fillna("")
     config = infer_game_config(source)
     result = GameLocalizationAgent(
         DemoTranslationBackend(delay_seconds=0, failure_marker=None), max_retries=0
@@ -141,7 +149,9 @@ def test_context_and_qa_review_demo_contains_both_review_queues():
 
 def test_review_signals_demo_contains_low_context_qa_and_failure():
     root = Path(__file__).resolve().parents[1]
-    source = pd.read_csv(root / "review_signals_demo.csv").fillna("")
+    source = pd.read_csv(
+        root / "samples" / "feature-tests" / "review_signals_demo.csv"
+    ).fillna("")
     config = infer_game_config(source)
     result = GameLocalizationAgent(
         DemoTranslationBackend(delay_seconds=0), max_retries=0

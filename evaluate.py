@@ -1,4 +1,4 @@
-"""Standalone evaluation harness for `eval_set.csv`.
+"""Standalone evaluation harness for `evaluation/eval_set.csv`.
 
 This scores *raw* candidate-model output against a small hand-labeled gold set on four
 axes: exact-match rate, character-level similarity, placeholder preservation, and
@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
-EVAL_SET_PATH = Path(__file__).parent / "eval_set.csv"
+EVAL_SET_PATH = Path(__file__).parent / "evaluation" / "eval_set.csv"
 
 PLACEHOLDER_TOKENS = ("{{count}}", "{{player_name}}")
 
