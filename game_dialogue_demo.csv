@@ -1,0 +1,9 @@
+line_id,scene_id,speaker,listener,emotion,source_text,context,character_limit
+L001,chapter_01,Luna,Player,angry,<b>你怎麼現在才來！</b>,玩家在約定時間後抵達月神殿,38
+L002,chapter_01,Player,Luna,apologetic,"抱歉，路上遇到了一點麻煩。",玩家試圖解釋遲到原因,48
+L003,chapter_01,Luna,Player,annoyed,"哼，我才沒有在等你。",Luna其實很擔心但不願承認,42
+L004,chapter_01,Luna,Player,soft,"下次別再遲到了，{{player_name}}。",兩人準備一起進入月神殿,52
+L005,chapter_02,Commander,Player,formal,"勇者，請收下星核 ITEM-001。",指揮官頒發任務道具,55
+L006,chapter_02,Player,Commander,determined,我一定會完成任務。,玩家接受任務,42
+L007,chapter_02,Merchant,Player,cheerful,"歡迎光臨！今天的藥水特價喔！",商人向玩家推銷商品,52
+L008,chapter_02,Luna,Merchant,sarcastic,你每一天都說是特價吧？,Luna吐槽商人的銷售話術,46

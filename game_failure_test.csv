@@ -1,0 +1,5 @@
+line_id,scene_id,speaker,listener,emotion,source_text,context,character_limit
+F001,failure_demo,Luna,Player,annoyed,你又遲到了！,正常台詞應成功翻譯,45
+F002,failure_demo,Player,Luna,apologetic,"[FAIL] 抱歉，我在路上遇到怪物。",Demo Mode 第一次會刻意讓這一行失敗,60
+F003,failure_demo,Luna,Player,soft,"下次小心一點，{{player_name}}。",placeholder 必須保留,60
+F004,failure_demo,Commander,Player,formal,"收下任務道具 ITEM-FAIL-001。",代碼必須原樣保留,55

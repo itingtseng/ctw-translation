@@ -1,0 +1,6 @@
+id,product_name,category,url,sku
+1,OpenAI 會員方案,軟體服務,https://example.com/member,PLAN-001
+2,[FAIL] 模擬失敗商品,測試分類,https://example.com/fail,TEST-002
+3,企業訂閱服務,商務工具,https://example.com/business,BIZ-003
+4,新手入門套件,教育內容,https://example.com/start,START-004
+5,進階分析功能,資料分析,https://example.com/analytics,DATA-005

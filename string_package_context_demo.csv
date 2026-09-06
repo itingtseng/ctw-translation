@@ -1,0 +1,13 @@
+key,source,en,context,char_limit,speaker,listener,emotion,status,screen,platform,plural,screenshot_reference
+btn_confirm,確認,,主選單的確認按鈕,4,System,Player,neutral,initial,main_menu,iOS Android,other,
+btn_open_chest,開啟,,玩家靠近寶箱時顯示的按鈕,4,System,Player,neutral,initial,treasure_room,iOS Android,other,
+ui_inventory_open,開啟,,背包教學中用來打開物品欄的按鈕,4,System,Player,neutral,initial,inventory,iOS Android,other,
+item_potion_count.one,{count} 瓶藥水,,背包內的藥水數量,20,System,Player,neutral,initial,inventory,iOS Android,one,
+item_potion_count.other,{count} 瓶藥水,,背包內的藥水數量,20,System,Player,neutral,initial,inventory,iOS Android,other,
+dlg_betrayal_01,你終於來了。,,Mira 在遺跡入口等待背叛她的玩家,22,Mira,Player,cold,initial,betrayal_cutscene,iOS Android,other,
+dlg_betrayal_02,先聽我解釋。,,,22,Player,Mira,anxious,initial,betrayal_cutscene,iOS Android,other,
+dlg_betrayal_03,我已經給過你機會了。,,,28,Mira,Player,angry,initial,betrayal_cutscene,iOS Android,other,
+dlg_betrayal_04,你會後悔的。,,,18,Mira,Player,threatening,initial,betrayal_cutscene,iOS Android,other,
+dlg_betrayal_05,拿去。,,Mira 將兩人的徽章扔回給玩家,12,Mira,Player,hurt,initial,betrayal_cutscene,iOS Android,other,
+quest_moonstone_missing,月光石不見了。,,玩家在任務日誌中發現關鍵道具遺失,24,Player,System,worried,initial,quest_log,iOS Android,other,
+tooltip_fire_sword,一把燃燒著永恆火焰的劍。,,裝備說明文字,42,System,Player,neutral,reviewed,equipment,iOS Android,other,https://example.com/assets/fire-sword.png

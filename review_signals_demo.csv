@@ -1,0 +1,5 @@
+key,source,en,context,char_limit,speaker,listener,emotion,status,screen,platform
+context_low_01,打開它,,,20,System,,,initial,,iOS
+qa_punctuation_01,系統維護中。,,系統維護公告；句尾必須保留完整標點。,40,System,Player,中性,initial,maintenance_notice,Android
+failed_value_01,[FAIL] 無法載入,,這筆在 Demo Mode 第一次翻譯會刻意失敗，用來測試 Failed value。,100,System,Player,中性,initial,loading_error,iOS
+qa_ok_01,任務完成。,,正常翻譯列，用來和其他三種信號對照。,30,System,Player,正面,initial,quest_complete,Android

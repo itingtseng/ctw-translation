@@ -1,0 +1,4 @@
+id,description,url,sku
+1,"新品 SKU-123，詳情請看 https://example.com/item",https://example.com/item,SKU-123
+2,"請聯絡 service@example.com 購買 PRODUCT-999",https://example.com/contact,PRODUCT-999
+3,"你好 {{customer_name}}，訂單 ORDER-456 已出貨",https://example.com/order,ORDER-456

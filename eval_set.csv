@@ -1,0 +1,17 @@
+id,source,glossary_term,glossary_translation,gold_english,gold_japanese
+E01,歡迎回來，勇者。,,,"Welcome back, hero.",お帰りなさい、勇者。
+E02,你今天想做什麼？,,,What would you like to do today?,今日は何をしますか？
+E03,星核已經準備好了。,星核,Astral Core,The Astral Core is ready.,アストラルコアの準備が整いました。
+E04,請前往月神殿完成任務。,月神殿,Temple of Luna,Please go to the Temple of Luna to complete the quest.,任務を完了するために月の神殿へ向かってください。
+E05,你還有 {{count}} 個道具。,,,You have {{count}} item(s) left.,あと{{count}}個のアイテムがあります。
+E06,商人今天不在。,,,The merchant is not here today.,商人は今日いません。
+E07,小心！怪物出現了！,,,Watch out! A monster has appeared!,気をつけて！モンスターが現れた！
+E08,這個任務有點困難。,,,This quest is a bit difficult.,このクエストは少し難しいです。
+E09,歡迎來到艾爾多拉商店。,,,Welcome to the Eldora Shop.,エルドラショップへようこそ。
+E10,你的等級提升了！,,,Your level has increased!,レベルが上がりました！
+E11,星核的能量正在減弱。,星核,Astral Core,The Astral Core's energy is weakening.,アストラルコアのエネルギーが弱まっています。
+E12,請輸入你的名字：{{player_name}},,,Please enter your name: {{player_name}},名前を入力してください：{{player_name}}
+E13,戰鬥開始！,,,Battle start!,戦闘開始！
+E14,你確定要離開嗎？,,,Are you sure you want to leave?,本当に離れますか？
+E15,感謝你的幫助，勇者。,,,"Thank you for your help, hero.",助けてくれてありがとう、勇者。
+E16,月神殿的大門已經打開。,月神殿,Temple of Luna,The gate of the Temple of Luna has opened.,月の神殿の扉が開きました。

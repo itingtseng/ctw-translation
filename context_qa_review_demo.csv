@@ -1,0 +1,6 @@
+key,source,en,context,char_limit,speaker,listener,emotion,status,screen,platform
+context_only_01,打開它,,,20,System,,,initial,,iOS
+qa_punctuation_01,系統維護中。,,,40,System,,,initial,,Android
+qa_length_01,你必須在月亮升起之前找到星核。,,任務提示；必須保留星核的正式名稱，但 UI 空間很短。,32,System,Player,急迫,initial,quest_tracker,iOS
+qa_empty_01,立即撤退！,,戰鬥中的撤退提示；不可留白。,20,System,Player,急迫,initial,battle_warning,Android
+qa_ok_01,任務完成。,,任務完成通知；這是一筆沒有 Context 或 QA 問題的對照資料。,30,System,Player,正面,initial,quest_complete,iOS
