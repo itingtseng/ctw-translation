@@ -3726,9 +3726,9 @@ def render_game_review(document: dict, result) -> None:
         axis=1,
     )
     edited = review.copy()
-    if document.get("review_grid_version") != 3:
+    if document.get("review_grid_version") != 4:
         edited.loc[:, "selected"] = False
-        document["review_grid_version"] = 3
+        document["review_grid_version"] = 4
         document["review_table"] = edited
     cards = build_translation_cards(
         document["dataframe"], result, edited, glossary_entries
@@ -3907,7 +3907,7 @@ def render_game_review(document: dict, result) -> None:
                         "rows": component_rows,
                         "storage_key": (
                             f"{document['id']}:{document.get('review_version', 0)}:"
-                            f"grid-{document.get('review_grid_version', 3)}"
+                            f"grid-{document.get('review_grid_version', 4)}"
                         ),
                         "sort_by": sort_by,
                         "characters": sorted(

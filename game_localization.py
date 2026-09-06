@@ -764,7 +764,7 @@ def build_review_table(
             translated_column = f"{config.source_text}__{safe_column_suffix(language)}"
             translation = _value(result.dataframe, position, translated_column)
             issue_types = set(group["type"].astype(str))
-            if issue_types == {"punctuation"} and translation.strip():
+            if "punctuation" in issue_types and translation.strip():
                 source = _value(source_df, position, config.source_text)
                 ending = "?" if re.search(r"[？?][\]）】』」》”’]*$", source) else (
                     "!" if re.search(r"[！!][\]）】』」》”’]*$", source) else "."
