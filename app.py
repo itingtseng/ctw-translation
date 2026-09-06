@@ -196,6 +196,7 @@ REVIEW_GRID_CSS = """
   font-family: var(--st-font, sans-serif);
 }
 .review-grid-shell {
+  position: relative;
   height: calc(100dvh - 7.5rem);
   min-height: 480px;
   display: flex;
@@ -415,21 +416,22 @@ input[type="checkbox"], input[type="radio"] {
   line-height: 1.2;
 }
 .review-grid-details {
-  display: block;
-  flex: 0 0 auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
   box-sizing: border-box;
   height: 195px;
-  min-height: 195px;
-  max-height: 195px;
   overflow: auto;
   padding: 0.55rem 0.7rem;
   border: 1px solid #d1d5db;
   border-radius: var(--st-base-radius, 0.5rem);
   background: #ffffff;
+  box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.12);
 }
 .review-grid-details[hidden] {
-  display: block !important;
-  visibility: hidden;
+  display: none;
 }
 .details-heading {
   display: flex;
@@ -545,7 +547,7 @@ export default function (component) {
       const messages = {
         "Selected lines": selectedCount
           ? `${selectedCount} row(s) selected`
-          : "Select at least one row in the table.",
+          : "",
         "Failed values": data?.has_failures
           ? `${data?.failed_count ?? 0} failed value(s) available`
           : "No failed values in this result.",
@@ -590,6 +592,8 @@ export default function (component) {
       ["Scene", row.scene],
       ["Speaker → Listener", row.speaker_listener],
       ["Emotion", row.emotion],
+      ["Previous dialogue", row.previous_lines],
+      ["Next dialogue", row.next_lines],
       ["Glossary hits", row.glossary_hits],
       ["TM matches", row.tm_match],
       ["Placeholder details", row.placeholder_details],
@@ -3883,6 +3887,8 @@ def render_game_review(document: dict, result) -> None:
                         "glossary_hits": str(getattr(card, "glossary_hits", "") if card else ""),
                         "tm_match": str(getattr(card, "tm_match", "") if card else ""),
                         "glossary_rules": glossary_rules_text,
+                        "previous_lines": str(review_row.get("previous_lines") or ""),
+                        "next_lines": str(review_row.get("next_lines") or ""),
                         "context_sources": str(
                             getattr(card, "context_sources", "") if card else ""
                         ),
