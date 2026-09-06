@@ -143,15 +143,15 @@ REVIEW_GRID_HTML = """
       <select class="rerun-value" aria-label="Targeted rerun value"></select>
     </label>
     <span class="rerun-status"></span>
+    <div class="review-grid-legend" aria-label="Review color legend">
+      <span><i class="legend-swatch context"></i>Yellow: context review</span>
+      <span><i class="legend-swatch qa"></i>Red: QA issue</span>
+      <span><i class="legend-swatch low"></i>Blue: low confidence</span>
+    </div>
     <span class="toolbar-spacer"></span>
     <button class="targeted-rerun" type="button" hidden>Targeted rerun</button>
     <span class="save-status">All changes saved</span>
     <button class="save-review" type="button">Save review changes</button>
-  </div>
-  <div class="review-grid-legend" aria-label="Review color legend">
-    <span><i class="legend-swatch context"></i>Yellow: context review</span>
-    <span><i class="legend-swatch qa"></i>Red: QA issue</span>
-    <span><i class="legend-swatch low"></i>Blue: low confidence</span>
   </div>
   <div class="review-grid-scroll">
     <table>
@@ -344,6 +344,8 @@ input[type="checkbox"], input[type="radio"] {
   gap: 1rem;
   color: #4b5563;
   font-size: 0.8rem;
+  margin-left: 1.25rem;
+  flex-shrink: 0;
 }
 .review-grid-legend span {
   display: inline-flex;
@@ -392,10 +394,13 @@ input[type="checkbox"], input[type="radio"] {
 .review-grid-actions .targeted-rerun {
   border: 1px solid var(--st-primary-color, #ff4b4b);
   border-radius: var(--st-base-radius, 0.5rem);
-  padding: 0.52rem 0.9rem;
+  padding: 0.25rem 0.75rem;
+  min-height: 2.5rem;
+  box-sizing: border-box;
   color: #ffffff;
   background: var(--st-primary-color, #ff4b4b);
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 400;
   cursor: pointer;
 }
 .review-grid-actions .targeted-rerun[hidden] {
@@ -2055,6 +2060,14 @@ def translation_setup_drawer(document_id: str) -> None:
             )
             return "" if selected == "(none)" else selected
 
+        def widget_style_label(text: str) -> None:
+            """Match st.selectbox's own label look (full-opacity, no extra bottom gap)."""
+            st.markdown(
+                f'<p style="color: rgb(49, 51, 63); font-size: 14px; font-weight: 400; '
+                f'line-height: 22.4px; margin: 0 0 0.35rem 0;">{text}</p>',
+                unsafe_allow_html=True,
+            )
+
         speaker_column_cell, source_column_cell, advanced_mapping_cell, context_style_cell = st.columns(4)
         with speaker_column_cell:
             speaker_column = st.selectbox(
@@ -2072,7 +2085,7 @@ def translation_setup_drawer(document_id: str) -> None:
                 key=f"game_source_column_{document_id}",
             )
         with advanced_mapping_cell:
-            st.caption("Advanced column mapping")
+            widget_style_label("Advanced column mapping")
             with st.popover("Optional fields", width="stretch"):
                 st.caption("Optional fields used for context, tracking, and UI-length validation.")
                 line_id_column = optional_game_column("Line ID", "line_id")
@@ -2095,7 +2108,7 @@ def translation_setup_drawer(document_id: str) -> None:
         )
         document["selected_columns"] = [game_config.source_text]
         with context_style_cell:
-            st.caption("Context & style evaluation")
+            widget_style_label("Context & style evaluation")
             with st.popover("Context & style", width="stretch"):
                 st.caption(
                     "Control neighboring dialogue context and the optional post-translation style review."
@@ -4271,6 +4284,7 @@ def render_result(result, document: dict) -> None:
     st.subheader(
         "Translation result",
         help="The latest completed translation will stay here, independent of the conversation.",
+        anchor=False,
     )
     metrics = result.metrics
     first, second, third, fourth = st.columns(4)
@@ -5137,7 +5151,7 @@ def main() -> None:
     initialize_state()
     collect_completed_jobs()
     st.title("🌐 Multilingual Translation Agent")
-    st.caption("Deterministic CSV handling · LLM translation · measurable validation")
+    st.caption("Deterministic CSV handling · LLM translation · measurable validation · by Tiffany Tseng")
     st.markdown(
         """
         <style>
