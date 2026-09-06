@@ -145,8 +145,8 @@ REVIEW_GRID_HTML = """
     <span class="rerun-status"></span>
     <span class="toolbar-spacer"></span>
     <button class="targeted-rerun" type="button" hidden>Targeted rerun</button>
-    <button class="save-review" type="button">Save review changes</button>
     <span class="save-status">All changes saved</span>
+    <button class="save-review" type="button">Save review changes</button>
   </div>
   <div class="review-grid-legend" aria-label="Review color legend">
     <span><i class="legend-swatch context"></i>Yellow: context review</span>
@@ -509,6 +509,10 @@ export default function (component) {
     window.localStorage.removeItem(storageKey)
     draft = null
     draftRows.clear()
+    if (saveStatus) {
+      saveStatus.textContent = "All changes saved"
+      saveStatus.classList.remove("unsaved")
+    }
   }
   tbody.replaceChildren()
 
@@ -4115,7 +4119,7 @@ def render_game_review(document: dict, result) -> None:
                     .encode("utf-8-sig"),
                     file_name="reviewed_game_localization.csv",
                     mime="text/csv",
-                    width="content",
+                    width="stretch",
                 )
 
 @st.dialog(" ", width="large", on_dismiss="rerun")
@@ -4188,7 +4192,7 @@ def generic_translation_review_drawer(document_id: str) -> None:
             result.dataframe.to_csv(index=False).encode("utf-8-sig"),
             file_name="translated.csv",
             mime="text/csv",
-            width="content",
+            width="stretch",
         )
     review_table = build_generic_review_table(result)
     st.dataframe(
