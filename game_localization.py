@@ -58,6 +58,7 @@ class GameConfig:
     emotion: str = "emotion"
     context: str = "context"
     character_limit: str = "character_limit"
+    screenshot: str = "screenshot_reference"
     previous_lines: int = 2
     next_lines: int = 1
 
@@ -86,6 +87,7 @@ def infer_game_config(df: pd.DataFrame) -> GameConfig:
         emotion=choose("emotion", "mood"),
         context=choose("context", "scene_context", "description", "developer_note", "note"),
         character_limit=choose("character_limit", "char_limit", "max_length", "length_limit"),
+        screenshot=choose("screenshot_reference", "screenshot", "screenshot_url", "image"),
     )
 
 
@@ -143,6 +145,18 @@ def _value(df: pd.DataFrame, row_position: int, column: str | None) -> str:
         return ""
     value = df.iloc[row_position][column]
     return "" if pd.isna(value) else str(value)
+
+
+def describe_placeholders(source: str, translation: str) -> str:
+    """List each source placeholder and whether the translation preserved it."""
+    placeholders = list(dict.fromkeys(PLACEHOLDER_RE.findall(source)))
+    if not placeholders:
+        return ""
+    translation_placeholders = set(PLACEHOLDER_RE.findall(translation))
+    return "; ".join(
+        f"{token}: preserved" if token in translation_placeholders else f"{token}: MISSING"
+        for token in placeholders
+    )
 
 
 def infer_string_id_clues(string_id: str) -> str:
@@ -770,6 +784,8 @@ def build_review_table(
             translated_column = f"{config.source_text}__{safe_column_suffix(language)}"
             style = style_lookup.get((position, language))
             record = records[position]
+            source_value = _value(source_df, position, config.source_text)
+            ai_value = _value(result.dataframe, position, translated_column)
             rows.append({
                 "selected": False,
                 "rerun_selected": False,
@@ -790,10 +806,12 @@ def build_review_table(
                 ),
                 "context_risk": context_risks.get(position, ""),
                 "character_limit": _value(source_df, position, config.available(source_df, "character_limit")),
+                "screenshot": _value(source_df, position, config.available(source_df, "screenshot")),
+                "placeholder_details": describe_placeholders(source_value, ai_value),
                 "language": language,
-                "source_text": _value(source_df, position, config.source_text),
-                "ai_translation": _value(result.dataframe, position, translated_column),
-                "reviewed_translation": _value(result.dataframe, position, translated_column),
+                "source_text": source_value,
+                "ai_translation": ai_value,
+                "reviewed_translation": ai_value,
                 "status": "Unreviewed",
                 "reviewer_comment": "",
                 "qa_flags": qa_lookup.get((position, language), ""),
@@ -1036,6 +1054,7 @@ def build_translation_cards(
             ),
             "qa_flags": qa,
             "tm_match": tm_translation,
+            "glossary_hits": "; ".join(glossary_hits),
         })
     return pd.DataFrame(cards)
 

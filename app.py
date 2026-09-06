@@ -78,14 +78,14 @@ REVIEW_REPORT_COLUMNS = [
     "Language",
     "Speaker",
     "Original",
-    "Developer note",
     "AI translation",
     "Final translation",
+    "Developer note",
+    "Length",
     "Context review",
     "Needs context",
     "QA issue",
     "Suggested fix",
-    "Length",
     "Confidence",
     "Failure reason",
     "Available context and provenance",
@@ -156,14 +156,14 @@ REVIEW_GRID_HTML = """
           <th class="language-column">Language</th>
           <th class="speaker-column">Speaker</th>
           <th class="text-column">Original</th>
-          <th class="text-column">Developer note</th>
           <th class="text-column">AI translation</th>
           <th class="text-column">Final translation</th>
+          <th class="text-column">Developer note</th>
+          <th class="length-column">Length</th>
           <th class="context-column">Context review</th>
           <th class="flag-column">Needs context</th>
           <th class="qa-column">QA issue</th>
           <th class="text-column">Suggested fix</th>
-          <th class="length-column">Length</th>
           <th class="confidence-column">Confidence</th>
           <th class="failure-column">Failure reason</th>
           <th class="notes-column">Notes</th>
@@ -411,9 +411,9 @@ input[type="checkbox"], input[type="radio"] {
   display: block;
   flex: 0 0 auto;
   box-sizing: border-box;
-  height: 155px;
-  min-height: 155px;
-  max-height: 155px;
+  height: 195px;
+  min-height: 195px;
+  max-height: 195px;
   overflow: auto;
   padding: 0.55rem 0.7rem;
   border: 1px solid #d1d5db;
@@ -583,6 +583,9 @@ export default function (component) {
       ["Scene", row.scene],
       ["Speaker → Listener", row.speaker_listener],
       ["Emotion", row.emotion],
+      ["Glossary hits", row.glossary_hits],
+      ["TM matches", row.tm_match],
+      ["Placeholder details", row.placeholder_details],
     ].forEach(([label, value]) => {
       const field = document.createElement("div")
       field.className = "details-field"
@@ -593,6 +596,23 @@ export default function (component) {
       field.append(fieldLabel, fieldValue)
       fields.appendChild(field)
     })
+    const screenshotField = document.createElement("div")
+    screenshotField.className = "details-field"
+    const screenshotLabel = document.createElement("span")
+    screenshotLabel.textContent = "Screenshot"
+    const screenshotValue = document.createElement("div")
+    if (row.screenshot && (row.screenshot.startsWith("http://") || row.screenshot.startsWith("https://"))) {
+      const link = document.createElement("a")
+      link.href = row.screenshot
+      link.target = "_blank"
+      link.rel = "noopener noreferrer"
+      link.textContent = "View screenshot"
+      screenshotValue.appendChild(link)
+    } else {
+      screenshotValue.textContent = row.screenshot || "Not provided"
+    }
+    screenshotField.append(screenshotLabel, screenshotValue)
+    fields.appendChild(screenshotField)
     const provenance = detailsPanel.querySelector(".details-provenance")
     provenance.textContent = row.context_sources
       ? `Reconstructed context and provenance: ${row.context_sources}`
@@ -675,7 +695,6 @@ export default function (component) {
     originalCell.appendChild(originalLayout)
     tr.appendChild(originalCell)
 
-    addTextCell(tr, row.developer_note)
     addTextCell(tr, row.ai_translation)
 
     const translationCell = document.createElement("td")
@@ -687,6 +706,23 @@ export default function (component) {
     translation.dataset.field = "translation"
     translationCell.appendChild(translation)
     tr.appendChild(translationCell)
+
+    addTextCell(tr, row.developer_note)
+
+    const lengthCell = document.createElement("td")
+    lengthCell.className = "length-column"
+    const limit = row.character_limit ? Number(row.character_limit) : null
+    const updateLength = () => {
+      const current = translation.value.length
+      lengthCell.textContent = limit ? `${current} / ${limit}` : String(current)
+      lengthCell.classList.toggle("length-over", Boolean(limit) && current > limit)
+    }
+    updateLength()
+    translation.oninput = () => {
+      persistDraft()
+      updateLength()
+    }
+    tr.appendChild(lengthCell)
 
     addTextCell(tr, row.context_review, "context-review-cell")
 
@@ -724,21 +760,6 @@ export default function (component) {
     }
     suggestedCell.appendChild(suggestedLayout)
     tr.appendChild(suggestedCell)
-
-    const lengthCell = document.createElement("td")
-    lengthCell.className = "length-column"
-    const limit = row.character_limit ? Number(row.character_limit) : null
-    const updateLength = () => {
-      const current = translation.value.length
-      lengthCell.textContent = limit ? `${current} / ${limit}` : String(current)
-      lengthCell.classList.toggle("length-over", Boolean(limit) && current > limit)
-    }
-    updateLength()
-    translation.oninput = () => {
-      persistDraft()
-      updateLength()
-    }
-    tr.appendChild(lengthCell)
 
     addTextCell(tr, row.confidence, "confidence-cell")
     addTextCell(tr, row.failure_reason)
@@ -3831,6 +3852,10 @@ def render_game_review(document: dict, result) -> None:
                         "emotion": str(review_row.get("emotion") or "Not provided"),
                         "developer_note": str(review_row.get("scene_context") or ""),
                         "character_limit": str(review_row.get("character_limit") or ""),
+                        "screenshot": str(review_row.get("screenshot") or ""),
+                        "placeholder_details": str(review_row.get("placeholder_details") or ""),
+                        "glossary_hits": str(getattr(card, "glossary_hits", "") if card else ""),
+                        "tm_match": str(getattr(card, "tm_match", "") if card else ""),
                         "context_sources": str(
                             getattr(card, "context_sources", "") if card else ""
                         ),
