@@ -1776,7 +1776,7 @@ def character_bible_drawer(document_id: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-    upload_column, _, save_column, cancel_column = st.columns([1.45, 5, 1.35, 0.8])
+    upload_column, _, cancel_column, save_column = st.columns([1.45, 5, 0.8, 1.35])
     with upload_column, st.container(key="bible_upload_compact"):
         bible_upload = st.file_uploader(
             "Upload",
@@ -1784,18 +1784,18 @@ def character_bible_drawer(document_id: str) -> None:
             key=f"bible_upload_{document_id}",
             label_visibility="collapsed",
         )
+    with cancel_column:
+        cancel_bible = st.button(
+            "Cancel",
+            width="content",
+            key=f"close_bible_{document_id}",
+        )
     with save_column:
         save_bible = st.button(
             "Save Character Bible",
             type="primary",
             width="content",
             key=f"save_bible_{document_id}",
-        )
-    with cancel_column:
-        cancel_bible = st.button(
-            "Cancel",
-            width="content",
-            key=f"close_bible_{document_id}",
         )
 
     if bible_upload is not None:
@@ -1942,7 +1942,7 @@ def glossary_drawer(document_id: str) -> None:
         "Use source | language | translation, optionally followed by type | notes. "
         "A single term means do not translate."
     )
-    upload_column, _, apply_column, cancel_column = st.columns([1.45, 5, 1.1, 0.8])
+    upload_column, _, cancel_column, apply_column = st.columns([1.45, 5, 0.8, 1.1])
     upload_key = f"drawer_glossary_upload_{document_id}_{document.get('glossary_revision', 0)}"
     with upload_column, st.container(key="glossary_upload_compact"):
         st.file_uploader(
@@ -1953,6 +1953,8 @@ def glossary_drawer(document_id: str) -> None:
             on_change=handle_project_glossary_upload,
             args=(document_id, upload_key),
         )
+    with cancel_column:
+        cancel = st.button("Cancel", width="content", key=f"close_glossary_{document_id}")
     with apply_column:
         st.button(
             "Apply glossary",
@@ -1962,8 +1964,6 @@ def glossary_drawer(document_id: str) -> None:
             on_click=apply_glossary,
             args=(document_id,),
         )
-    with cancel_column:
-        cancel = st.button("Cancel", width="content", key=f"close_glossary_{document_id}")
     glossary_draft = st.text_area(
         "Terminology rules",
         key=glossary_key,
@@ -2031,7 +2031,6 @@ def translation_setup_drawer(document_id: str) -> None:
             st.caption("Character Bible · not required because no speaker column was detected")
 
         column_options = list(dataframe.columns)
-        required_left, required_right = st.columns(2)
         speaker_options = ["(none)"] + column_options
         speaker_default = (
             speaker_options.index(current_config.speaker)
@@ -2041,19 +2040,6 @@ def translation_setup_drawer(document_id: str) -> None:
             column_options.index(current_config.source_text)
             if current_config.source_text in column_options
             else next((column_options.index(name) for name in proposed if name in column_options), 0)
-        )
-        speaker_column = required_left.selectbox(
-            "Speaker column",
-            speaker_options,
-            index=speaker_default,
-            key=f"game_speaker_column_{document_id}",
-        )
-        speaker_column = "" if speaker_column == "(none)" else speaker_column
-        source_column = required_right.selectbox(
-            "Dialogue column",
-            column_options,
-            index=source_default,
-            key=f"game_source_column_{document_id}",
         )
 
         def optional_game_column(label: str, field: str):
@@ -2068,14 +2054,31 @@ def translation_setup_drawer(document_id: str) -> None:
             )
             return "" if selected == "(none)" else selected
 
-        with st.expander("Advanced column mapping", expanded=False):
-            st.caption("Optional fields used for context, tracking, and UI-length validation.")
-            line_id_column = optional_game_column("Line ID", "line_id")
-            scene_column = optional_game_column("Scene", "scene_id")
-            listener_column = optional_game_column("Listener", "listener")
-            emotion_column = optional_game_column("Emotion", "emotion")
-            context_column = optional_game_column("Scene context", "context")
-            limit_column = optional_game_column("Character limit", "character_limit")
+        speaker_column_cell, source_column_cell, advanced_mapping_cell, context_style_cell = st.columns(4)
+        with speaker_column_cell:
+            speaker_column = st.selectbox(
+                "Speaker column",
+                speaker_options,
+                index=speaker_default,
+                key=f"game_speaker_column_{document_id}",
+            )
+            speaker_column = "" if speaker_column == "(none)" else speaker_column
+        with source_column_cell:
+            source_column = st.selectbox(
+                "Dialogue column",
+                column_options,
+                index=source_default,
+                key=f"game_source_column_{document_id}",
+            )
+        with advanced_mapping_cell:
+            with st.expander("Advanced column mapping", expanded=False):
+                st.caption("Optional fields used for context, tracking, and UI-length validation.")
+                line_id_column = optional_game_column("Line ID", "line_id")
+                scene_column = optional_game_column("Scene", "scene_id")
+                listener_column = optional_game_column("Listener", "listener")
+                emotion_column = optional_game_column("Emotion", "emotion")
+                context_column = optional_game_column("Scene context", "context")
+                limit_column = optional_game_column("Character limit", "character_limit")
         game_config = GameConfig(
             line_id=line_id_column,
             scene_id=scene_column,
@@ -2089,35 +2092,35 @@ def translation_setup_drawer(document_id: str) -> None:
             next_lines=current_config.next_lines,
         )
         document["selected_columns"] = [game_config.source_text]
+        with context_style_cell:
+            with st.expander("Context & style evaluation", expanded=False):
+                st.caption(
+                    "Control neighboring dialogue context and the optional post-translation style review."
+                )
+                previous_lines = st.number_input(
+                    "Previous lines",
+                    min_value=0,
+                    max_value=5,
+                    value=game_config.previous_lines,
+                    key=f"game_previous_{document_id}",
+                )
+                next_lines = st.number_input(
+                    "Next lines",
+                    min_value=0,
+                    max_value=5,
+                    value=game_config.next_lines,
+                    key=f"game_next_{document_id}",
+                )
+                document["evaluate_style"] = st.checkbox(
+                    "Run AI style evaluation after translation",
+                    value=document.get("evaluate_style", False),
+                    key=f"evaluate_style_{document_id}",
+                    help="Adds a second model pass with a 0–100 advisory style score.",
+                )
         st.caption(
             "Schema: line_id · scene_id · speaker · listener · emotion · source_text · "
             "context · character_limit. Optional columns are used when present."
         )
-        with st.expander("Context & style evaluation", expanded=False):
-            st.caption(
-                "Control neighboring dialogue context and the optional post-translation style review."
-            )
-            context_left, context_right = st.columns(2)
-            previous_lines = context_left.number_input(
-                "Previous lines",
-                min_value=0,
-                max_value=5,
-                value=game_config.previous_lines,
-                key=f"game_previous_{document_id}",
-            )
-            next_lines = context_right.number_input(
-                "Next lines",
-                min_value=0,
-                max_value=5,
-                value=game_config.next_lines,
-                key=f"game_next_{document_id}",
-            )
-            document["evaluate_style"] = st.checkbox(
-                "Run AI style evaluation after translation",
-                value=document.get("evaluate_style", False),
-                key=f"evaluate_style_{document_id}",
-                help="Adds a second model pass with a 0–100 advisory style score.",
-            )
         game_config = GameConfig(
             line_id=line_id_column,
             scene_id=scene_column,
