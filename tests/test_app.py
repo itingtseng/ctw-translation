@@ -14,6 +14,7 @@ from game_localization import (
     default_character_bible,
 )
 from app import REVIEW_REPORT_COLUMNS as REVIEW_REPORT_COLUMNS_FOR_TEST
+from app import format_length_field
 
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
@@ -102,20 +103,36 @@ def test_review_grid_offers_review_signals_and_sort_options_without_review_mode(
         '<th class="language-column">Language</th>',
         '<th class="speaker-column">Speaker</th>',
         '<th class="text-column">Original</th>',
+        '<th class="text-column">Developer note</th>',
         '<th class="text-column">AI translation</th>',
         '<th class="text-column">Final translation</th>',
-        '<th class="text-column">Developer note</th>',
-        '<th class="length-column">Length</th>',
         '<th class="context-column">Context review</th>',
         '<th class="flag-column">Needs context</th>',
         '<th class="qa-column">QA issue</th>',
         '<th class="text-column">Suggested fix</th>',
+        '<th class="length-column">Length</th>',
         '<th class="confidence-column">Confidence</th>',
         '<th class="failure-column">Failure reason</th>',
     ]
     assert [source.index(header) for header in shared_headers] == sorted(
         source.index(header) for header in shared_headers
     )
+    details_source = source.split("const showDetails = (row) => {", 1)[1].split(
+        "const addTextCell", 1
+    )[0]
+    assert '["Confidence", row.confidence]' not in details_source
+    assert '["Developer note", row.developer_note]' not in details_source
+    for detail_label in (
+        "Scene", "Speaker → Listener", "Emotion", "Previous dialogue",
+        "Next dialogue", "Glossary hits", "TM matches", "Placeholder details",
+        "Translation run", "Review audit", "Screenshot",
+    ):
+        assert detail_label in details_source
+
+
+def test_length_field_always_shows_current_count_and_limit_slot():
+    assert format_length_field("翻譯", "12") == "2 / 12"
+    assert format_length_field("Translation", "") == "11 / —"
 
 
 def test_context_review_report_precedes_qa_report_and_is_downloadable():

@@ -21,6 +21,7 @@ import streamlit as st
 from openai import OpenAI
 
 import game_localization as game_localization_module
+import translation_agent as translation_agent_module
 
 # Streamlit reruns app.py without automatically reloading imported local modules.
 # Reload the game workflow so local rule changes are reflected without restarting the server.
@@ -35,7 +36,6 @@ from translation_agent import (
     DemoTranslationBackend,
     GlossaryEntry,
     OpenAITranslationBackend,
-    PROMPT_VERSION,
     TranslationAgent,
     TranslationCancelled,
     WorkloadEstimate,
@@ -44,6 +44,10 @@ from translation_agent import (
     profile_columns,
     safe_column_suffix,
 )
+
+# A Streamlit Cloud hot reload can retain the pre-update translation_agent module
+# in memory. Fall back safely until the worker performs a full restart.
+PROMPT_VERSION = getattr(translation_agent_module, "PROMPT_VERSION", "v1")
 from game_localization import (
     CHARACTER_BIBLE_COLUMNS,
     GameConfig,
@@ -85,14 +89,14 @@ REVIEW_REPORT_COLUMNS = [
     "Language",
     "Speaker",
     "Original",
+    "Developer note",
     "AI translation",
     "Final translation",
-    "Developer note",
-    "Length",
     "Context review",
     "Needs context",
     "QA issue",
     "Suggested fix",
+    "Length",
     "Confidence",
     "Failure reason",
     "Available context and provenance",
@@ -163,14 +167,14 @@ REVIEW_GRID_HTML = """
           <th class="language-column">Language</th>
           <th class="speaker-column">Speaker</th>
           <th class="text-column">Original</th>
+          <th class="text-column">Developer note</th>
           <th class="text-column">AI translation</th>
           <th class="text-column">Final translation</th>
-          <th class="text-column">Developer note</th>
-          <th class="length-column">Length</th>
           <th class="context-column">Context review</th>
           <th class="flag-column">Needs context</th>
           <th class="qa-column">QA issue</th>
           <th class="text-column">Suggested fix</th>
+          <th class="length-column">Length</th>
           <th class="confidence-column">Confidence</th>
           <th class="failure-column">Failure reason</th>
           <th class="notes-column">Notes</th>
@@ -610,6 +614,8 @@ export default function (component) {
       ["TM matches", row.tm_match],
       ["Placeholder details", row.placeholder_details],
       ["Glossary & protected terms", row.glossary_rules],
+      ["Translation run", row.run_configuration],
+      ["Review audit", row.review_audit],
     ].forEach(([label, value]) => {
       const field = document.createElement("div")
       field.className = "details-field"
@@ -719,6 +725,7 @@ export default function (component) {
     originalCell.appendChild(originalLayout)
     tr.appendChild(originalCell)
 
+    addTextCell(tr, row.developer_note)
     addTextCell(tr, row.ai_translation)
 
     const translationCell = document.createElement("td")
@@ -730,23 +737,6 @@ export default function (component) {
     translation.dataset.field = "translation"
     translationCell.appendChild(translation)
     tr.appendChild(translationCell)
-
-    addTextCell(tr, row.developer_note)
-
-    const lengthCell = document.createElement("td")
-    lengthCell.className = "length-column"
-    const limit = row.character_limit ? Number(row.character_limit) : null
-    const updateLength = () => {
-      const current = translation.value.length
-      lengthCell.textContent = limit ? `${current} / ${limit}` : String(current)
-      lengthCell.classList.toggle("length-over", Boolean(limit) && current > limit)
-    }
-    updateLength()
-    translation.oninput = () => {
-      persistDraft()
-      updateLength()
-    }
-    tr.appendChild(lengthCell)
 
     addTextCell(tr, row.context_review, "context-review-cell")
 
@@ -784,6 +774,21 @@ export default function (component) {
     }
     suggestedCell.appendChild(suggestedLayout)
     tr.appendChild(suggestedCell)
+
+    const lengthCell = document.createElement("td")
+    lengthCell.className = "length-column"
+    const limit = row.character_limit ? Number(row.character_limit) : null
+    const updateLength = () => {
+      const current = Array.from(translation.value).length
+      lengthCell.textContent = `${current} / ${limit || "—"}`
+      lengthCell.classList.toggle("length-over", Boolean(limit) && current > limit)
+    }
+    updateLength()
+    translation.oninput = () => {
+      persistDraft()
+      updateLength()
+    }
+    tr.appendChild(lengthCell)
 
     addTextCell(tr, row.confidence, "confidence-cell")
     addTextCell(tr, row.failure_reason)
@@ -3218,7 +3223,7 @@ def build_failure_triage(
             "Speaker": str(failure.get("speaker", "")),
             "Original": str(failure.get("source", "")),
             "AI translation": "",
-            "Confidence": "Failed",
+            "Confidence": "Failed · 0%",
             "Failure reason": str(failure.get("error", "")),
             "Final translation": "",
             "Resolution note": RESOLUTION_NOTES[0],
@@ -3512,11 +3517,7 @@ def render_selected_context_inspector(document: dict, review: pd.DataFrame, card
     if selected_row.get("context_risk"):
         st.warning(f"Needs context review: {selected_row['context_risk']}")
     with st.container(border=False):
-        confidence_column, scene_column, speaker_column, emotion_column, note_column = st.columns(
-            [0.8, 0.9, 1.25, 0.9, 1.45]
-        )
-        confidence_column.caption("Confidence")
-        confidence_column.write(f"{card['confidence_level']} · {int(card['confidence'])}%")
+        scene_column, speaker_column, emotion_column = st.columns([0.9, 1.25, 0.9])
         scene_column.caption("Scene")
         scene_column.write(selected_row.get("scene_id") or "Not provided")
         speaker_column.caption("Speaker → Listener")
@@ -3526,8 +3527,11 @@ def render_selected_context_inspector(document: dict, review: pd.DataFrame, card
         )
         emotion_column.caption("Emotion")
         emotion_column.write(selected_row.get("emotion") or "Not provided")
-        note_column.caption("Developer note")
-        note_column.write(selected_row.get("scene_context") or "Not provided")
+        previous_column, next_column = st.columns(2)
+        previous_column.caption("Previous dialogue")
+        previous_column.write(selected_row.get("previous_lines") or "Not provided")
+        next_column.caption("Next dialogue")
+        next_column.write(selected_row.get("next_lines") or "Not provided")
         if card["ambiguity"]:
             st.error(f"Ambiguity: {card['ambiguity']}")
             st.caption(card["provisional_note"])
@@ -3597,10 +3601,10 @@ def hide_demo_noise_qa(result) -> None:
 
 
 def format_length_field(current_text: str, limit_raw: str) -> str:
-    """Render a Length cell as "current / limit", or just the current count with no limit."""
+    """Render a Length cell consistently as "current / limit"."""
     current = len(current_text or "")
     limit = str(limit_raw or "").strip()
-    return f"{current} / {limit}" if limit else str(current)
+    return f"{current} / {limit or '—'}"
 
 
 def build_unified_review_report(
@@ -3665,15 +3669,15 @@ FULL_REVIEW_EXPORT_COLUMNS = [
     "Emotion",
     "Scene",
     "Original",
+    "Developer note",
     "AI translation",
     "Final translation",
-    "Developer note",
     "Status",
-    "Length",
     "Context review",
     "Needs context",
     "QA issue",
     "Suggested fix",
+    "Length",
     "Confidence",
     "Failure reason",
     "Notes",
@@ -3955,9 +3959,9 @@ def render_game_review(document: dict, result) -> None:
         axis=1,
     )
     edited = review.copy()
-    if document.get("review_grid_version") != 4:
+    if document.get("review_grid_version") != 5:
         edited.loc[:, "selected"] = False
-        document["review_grid_version"] = 4
+        document["review_grid_version"] = 5
         document["review_table"] = edited
     cards = build_translation_cards(
         document["dataframe"], result, edited, glossary_entries
@@ -4037,6 +4041,7 @@ def render_game_review(document: dict, result) -> None:
                 "Language": ordered["language"].fillna(""),
                 "Speaker": ordered["speaker"].fillna(""),
                 "Original": ordered["source_text"].fillna(""),
+                "Developer note": ordered["scene_context"].fillna(""),
                 "AI translation": ordered.apply(
                     lambda row: (
                         "" if (int(row["row_position"]), str(row["language"])) in failure_lookup
@@ -4050,11 +4055,20 @@ def render_game_review(document: dict, result) -> None:
                 "Needs context": ordered["status"].eq("Needs context"),
                 "QA issue": ordered["qa_issue"].fillna(""),
                 "Suggested fix": ordered["suggested_fix"].fillna(""),
-                "Confidence score": ordered.apply(
-                    lambda row: f"{int(row.get('confidence') or 0)}%",
+                "Length": ordered.apply(
+                    lambda row: format_length_field(
+                        str(row.get("reviewed_translation") or ""),
+                        str(row.get("character_limit") or ""),
+                    ),
                     axis=1,
                 ),
-                "Confidence level": ordered["confidence_level"].fillna(""),
+                "Confidence": ordered.apply(
+                    lambda row: (
+                        f"{str(row.get('confidence_level') or 'Unknown')} · "
+                        f"{int(row.get('confidence') or 0)}%"
+                    ),
+                    axis=1,
+                ),
                 "Failure reason": ordered.apply(
                     lambda row: failure_lookup.get(
                         (int(row["row_position"]), str(row["language"])), ""
@@ -4074,6 +4088,7 @@ def render_game_review(document: dict, result) -> None:
                     (int(card.row_position), str(card.language)): card
                     for card in cards.itertuples()
                 }
+                latest_run = document.get("runs", [])[-1] if document.get("runs") else {}
                 component_rows = []
                 for index, row in navigation.iterrows():
                     review_row = ordered.loc[index]
@@ -4089,13 +4104,9 @@ def render_game_review(document: dict, result) -> None:
                         "language": str(row["Language"] or ""),
                         "speaker": str(row["Speaker"] or ""),
                         "original": str(row["Original"] or ""),
+                        "developer_note": str(row["Developer note"] or ""),
                         "ai_translation": str(row["AI translation"] or ""),
-                        "confidence_score": str(row["Confidence score"] or ""),
-                        "confidence_level": str(row["Confidence level"] or ""),
-                        "confidence": (
-                            f"{row['Confidence level'] or 'Unknown'} · "
-                            f"{row['Confidence score'] or '0%'}"
-                        ),
+                        "confidence": str(row["Confidence"] or ""),
                         "context_review": str(row["Context review"] or ""),
                         "qa_issue": str(row["QA issue"] or ""),
                         "suggested_fix": str(row["Suggested fix"] or ""),
@@ -4113,7 +4124,6 @@ def render_game_review(document: dict, result) -> None:
                             f"{review_row.get('listener') or 'Unknown'}"
                         ),
                         "emotion": str(review_row.get("emotion") or "Not provided"),
-                        "developer_note": str(review_row.get("scene_context") or ""),
                         "character_limit": str(review_row.get("character_limit") or ""),
                         "screenshot": str(review_row.get("screenshot") or ""),
                         "placeholder_details": str(review_row.get("placeholder_details") or ""),
@@ -4122,6 +4132,15 @@ def render_game_review(document: dict, result) -> None:
                         "glossary_rules": glossary_rules_text,
                         "previous_lines": str(review_row.get("previous_lines") or ""),
                         "next_lines": str(review_row.get("next_lines") or ""),
+                        "run_configuration": (
+                            f"Model: {latest_run.get('Model') or ('demo-no-api' if demo_mode_enabled() else 'Not recorded')} · "
+                            f"Prompt: {PROMPT_VERSION} · Glossary revision: {document.get('result_glossary_revision', 0)}"
+                        ),
+                        "review_audit": (
+                            f"Status: {review_row.get('status') or 'Unreviewed'} · "
+                            f"Revision: {document.get('review_version', 0)} · "
+                            "Reviewer and timestamp not recorded"
+                        ),
                         "context_sources": str(
                             getattr(card, "context_sources", "") if card else ""
                         ),
@@ -4136,7 +4155,7 @@ def render_game_review(document: dict, result) -> None:
                         "rows": component_rows,
                         "storage_key": (
                             f"{document['id']}:{document.get('review_version', 0)}:"
-                            f"grid-{document.get('review_grid_version', 4)}"
+                            f"grid-{document.get('review_grid_version', 5)}"
                         ),
                         "sort_by": sort_by,
                         "characters": sorted(
