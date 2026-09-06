@@ -401,6 +401,8 @@ input[type="checkbox"], input[type="radio"] {
   background: var(--st-primary-color, #ff4b4b);
   font-size: 1rem;
   font-weight: 400;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
 }
 .review-grid-actions .targeted-rerun[hidden] {
@@ -1883,6 +1885,9 @@ def character_bible_drawer(document_id: str) -> None:
         )
         st.rerun()
 
+    if st.button("Close", key=f"close_bible_bottom_{document_id}"):
+        st.rerun()
+
 
 def render_character_bible_summary(document_id: str) -> None:
     """Keep an imported Character Bible visible from the persistent workspace."""
@@ -1984,6 +1989,9 @@ def glossary_drawer(document_id: str) -> None:
     elif document.get("glossary_confirmation"):
         st.success(document["glossary_confirmation"])
     if cancel:
+        st.rerun()
+
+    if st.button("Close", key=f"close_glossary_bottom_{document_id}"):
         st.rerun()
 
 
@@ -5488,6 +5496,18 @@ def main() -> None:
         [data-testid="stChatMessage"] {
             border-radius: var(--st-base-radius);
             padding: 0.35rem 0.5rem;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+            flex-direction: row-reverse;
+            margin-left: auto;
+            width: fit-content;
+            max-width: 85%;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])
+        [data-testid="stChatMessageContent"],
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])
+        [data-testid="stMarkdownContainer"] {
+            text-align: right;
         }
         [data-testid="stSidebar"] [data-testid="stButton"] button {
             justify-content: flex-start;
