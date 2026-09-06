@@ -428,7 +428,15 @@ class OpenAITranslationBackend:
                 f"(finish_reason={finish_reason!r}, expected_keys={sorted(payload)}, "
                 f"raw_response={raw_content!r})"
             )
-        values = [data[str(index)] for index in range(len(records))]
+        values = []
+        for index in range(len(records)):
+            value = data[str(index)]
+            if isinstance(value, dict) and isinstance(value.get("text"), str):
+                # Occasionally, especially for a lone single-item batch, the model echoes the
+                # whole input record instead of returning a bare string. Recover the translation
+                # from its `text` field rather than discarding a correct answer as a failure.
+                value = value["text"]
+            values.append(value)
         if any(not isinstance(value, str) or not value.strip() for value in values):
             raise ValueError(
                 f"Model returned a missing game translation "

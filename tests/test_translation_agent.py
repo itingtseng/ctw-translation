@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import pandas as pd
 
+import json
+
 from translation_agent import (
     DemoTranslationBackend,
+    OpenAITranslationBackend,
     ProviderTranslationError,
     TranslationAgent,
     detect_chinese_columns,
@@ -15,6 +18,21 @@ from translation_agent import (
     text_similarity,
     TranslationCancelled,
 )
+
+
+class FakeOpenAIClient:
+    """Mimics the OpenAI SDK response shape for a single chat.completions.create call."""
+
+    def __init__(self, content: str, finish_reason: str = "stop"):
+        self.chat = self
+        self.completions = self
+        self._content = content
+        self._finish_reason = finish_reason
+
+    def create(self, **kwargs):
+        message = type("Message", (), {"content": self._content})()
+        choice = type("Choice", (), {"message": message, "finish_reason": self._finish_reason})()
+        return type("Response", (), {"choices": [choice]})()
 
 
 class FakeBackend:
@@ -223,6 +241,33 @@ def test_model_routing_escalates_on_retry_after_a_transient_failure():
     assert backend.calls[1][1] == "gpt-4o"
     assert result.metrics.escalated_batches == 1
     assert result.metrics.coverage == 1.0
+
+
+def test_openai_backend_recovers_translation_when_model_echoes_whole_record():
+    raw = json.dumps({
+        "0": {
+            "row_position": 0,
+            "line_id": "context_low_01",
+            "speaker": "System",
+            "text": "Open it",
+        }
+    })
+    client = FakeOpenAIClient(raw)
+    backend = OpenAITranslationBackend(client, model="gpt-4o-mini")
+    result = backend.translate_game([{"text": "打開它", "speaker": "System"}], "English")
+    assert result == ["Open it"]
+
+
+def test_openai_backend_still_fails_when_echoed_record_has_no_text_field():
+    raw = json.dumps({"0": {"row_position": 0, "speaker": "System"}})
+    client = FakeOpenAIClient(raw)
+    backend = OpenAITranslationBackend(client, model="gpt-4o-mini")
+    try:
+        backend.translate_game([{"text": "打開它", "speaker": "System"}], "English")
+    except ValueError as error:
+        assert "missing game translation" in str(error)
+    else:
+        raise AssertionError("Expected a ValueError for a response with no recoverable text")
 
 
 def test_state_events_trace_split_and_retain_source_on_persistent_failure():
