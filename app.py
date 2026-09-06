@@ -5440,9 +5440,12 @@ def main() -> None:
            title's own anchor-link used to let a reader jump past this (clicking it
            scrolls the title flush to the viewport top, revealing more of Conversation
            and Workspace below in the same viewport height); anchor=False removed that
-           interaction, so bake the same tightened spacing in permanently instead. */
+           interaction, so bake the same tightened spacing in permanently instead.
+           Streamlit Community Cloud also overlays its own ~60px share/star/edit
+           toolbar above the app on deployed apps (not visible in local dev), so this
+           must clear that too, not just Streamlit's own default gap. */
         [data-testid="stMainBlockContainer"] {
-            padding-top: 1.5rem !important;
+            padding-top: 4.5rem !important;
         }
         /* st.bottom spans the whole page by default, so a taller Conversation
            toolbar also reserves/paints empty space over Workspace. Keep the
