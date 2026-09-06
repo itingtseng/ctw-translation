@@ -5391,7 +5391,7 @@ def create_uploaded_project(
 def main() -> None:
     initialize_state()
     collect_completed_jobs()
-    st.title("🌐 Multilingual Translation Agent")
+    st.title("🌐 Multilingual Translation Agent", anchor=False)
     st.caption("Deterministic CSV handling · LLM translation · measurable validation · by Tiffany Tseng")
     st.markdown(
         """
@@ -5435,6 +5435,14 @@ def main() -> None:
         [data-testid="stChatMessage"]:has([data-testid="stFileUploader"])
         [data-testid="stFileUploaderDropzoneInstructions"] {
             color: #1E3A8A !important;
+        }
+        /* Streamlit reserves a large default gap above the first element. The
+           title's own anchor-link used to let a reader jump past this (clicking it
+           scrolls the title flush to the viewport top, revealing more of Conversation
+           and Workspace below in the same viewport height); anchor=False removed that
+           interaction, so bake the same tightened spacing in permanently instead. */
+        [data-testid="stMainBlockContainer"] {
+            padding-top: 1.5rem !important;
         }
         /* st.bottom spans the whole page by default, so a taller Conversation
            toolbar also reserves/paints empty space over Workspace. Keep the
