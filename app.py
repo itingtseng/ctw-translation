@@ -24,6 +24,11 @@ import game_localization as game_localization_module
 
 # Streamlit reruns app.py without automatically reloading imported local modules.
 # Reload the game workflow so local rule changes are reflected without restarting the server.
+# translation_agent is deliberately NOT reloaded this way: it defines exception classes
+# (TranslationCancelled, ProviderTranslationError) that cross module boundaries, and
+# importlib.reload() replaces a module's classes with new objects on every rerun, which
+# breaks isinstance/except checks holding an older reference. A translation_agent.py edit
+# needs a full server restart to take effect; that's the safer trade-off.
 game_localization_module = importlib.reload(game_localization_module)
 
 from translation_agent import (
