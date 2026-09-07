@@ -4519,6 +4519,28 @@ def render_generic_review_launcher(result) -> None:
     )
 
 
+def validate_translation_integrity(
+    source_df: pd.DataFrame, result_df: pd.DataFrame
+) -> tuple[bool, str]:
+    """Actually verify the pipeline's core guarantee, rather than assert it unconditionally:
+    same row count, and every original column's values byte-for-byte unchanged. The
+    translation step is only ever supposed to *add* columns, never touch existing ones —
+    every run() copies the source df and appends to the copy (see translation_agent.py and
+    game_localization.py), so this should always pass; the point of checking is to actually
+    catch it if a future change ever breaks that invariant, instead of just hoping."""
+    if len(source_df) != len(result_df):
+        return False, f"row count changed ({len(source_df):,} → {len(result_df):,})"
+    result_columns = set(result_df.columns)
+    for column in source_df.columns:
+        if column not in result_columns:
+            return False, f"original column '{column}' is missing from the result"
+        left = source_df[column].reset_index(drop=True)
+        right = result_df[column].reset_index(drop=True)
+        if not left.equals(right):
+            return False, f"original column '{column}' was modified"
+    return True, ""
+
+
 def render_result(result, document: dict) -> None:
     if result is None:
         return
@@ -4533,10 +4555,19 @@ def render_result(result, document: dict) -> None:
     second.metric("Coverage", f"{metrics.coverage:.1%}")
     third.metric("API calls", metrics.api_calls)
     fourth.metric("Retries / splits", f"{metrics.retries} / {metrics.fallback_splits}")
-    st.caption(
-        "Validation passed: row count and all original columns/values are unchanged. "
-        f"Translated {metrics.translated_unique_values:,} of {metrics.requested_unique_values:,} unique values."
+    integrity_passed, integrity_detail = validate_translation_integrity(
+        document["dataframe"], result.dataframe
     )
+    if integrity_passed:
+        st.caption(
+            "Validation passed: row count and all original columns/values are unchanged. "
+            f"Translated {metrics.translated_unique_values:,} of {metrics.requested_unique_values:,} unique values."
+        )
+    else:
+        st.warning(
+            f"Validation failed: {integrity_detail}. The translated result may not be "
+            "safe to use — original data should never change during translation."
+        )
     if metrics.escalated_batches:
         st.caption(f"Model routing: {metrics.escalated_batches} batch(es) escalated to the stronger model.")
     if metrics.state_events:
