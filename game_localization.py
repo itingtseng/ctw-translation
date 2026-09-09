@@ -420,6 +420,51 @@ def build_game_qa(
     )
 
 
+def translation_quality_rates(
+    df: pd.DataFrame,
+    result_df: pd.DataFrame,
+    config: GameConfig,
+    languages: Sequence[str],
+    glossary: Sequence[GlossaryEntry],
+    qa: pd.DataFrame,
+) -> dict[str, float | None]:
+    """Recall across the whole run: of every (row, language) pair where a source
+    placeholder/glossary rule applied, what fraction came through intact.
+
+    protect_tokens/restore_tokens (see translation_agent.py) is supposed to make this
+    structurally guaranteed rather than a matter of translation quality — this measures
+    it anyway, on the real run's own data, as a live check that the guarantee actually
+    held rather than just assuming it. Denominator is 0 when nothing in this run ever
+    triggered the rule; the rate is then None so the caller can render "n/a" instead of
+    a hollow 100%.
+    """
+    source_column = config.source_text
+    placeholder_total = 0
+    glossary_total = 0
+    for position in range(len(df)):
+        source = _value(df, position, source_column)
+        has_placeholder = bool(PLACEHOLDER_RE.search(source))
+        for language in languages:
+            translated_column = f"{source_column}__{safe_column_suffix(language)}"
+            if translated_column not in result_df:
+                continue
+            if has_placeholder:
+                placeholder_total += 1
+            for entry in glossary:
+                if entry.source in source and entry.target_language == language and entry.translation:
+                    glossary_total += 1
+    placeholder_issues = int((qa["type"] == "placeholder_mismatch").sum()) if not qa.empty else 0
+    glossary_issues = int((qa["type"] == "glossary_violation").sum()) if not qa.empty else 0
+    return {
+        "placeholder_preservation_rate": (
+            (placeholder_total - placeholder_issues) / placeholder_total if placeholder_total else None
+        ),
+        "glossary_compliance_rate": (
+            (glossary_total - glossary_issues) / glossary_total if glossary_total else None
+        ),
+    }
+
+
 def back_translation_qa(
     backend,
     df: pd.DataFrame,
@@ -725,6 +770,9 @@ class GameLocalizationAgent:
             )
             if not hallucination_issues.empty:
                 qa = pd.concat([qa, hallucination_issues], ignore_index=True)
+        rates = translation_quality_rates(df, output, config, languages, glossary, qa)
+        metrics.placeholder_preservation_rate = rates["placeholder_preservation_rate"]
+        metrics.glossary_compliance_rate = rates["glossary_compliance_rate"]
         style_df = pd.DataFrame(
             style_rows,
             columns=["row_position", "line_id", "speaker", "language", "score", "reason", "suggestion"],

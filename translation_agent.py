@@ -167,6 +167,12 @@ class TranslationMetrics:
     preserved_tokens: int = 0
     escalated_batches: int = 0
     duration_seconds: float = 0.0
+    # Recall across every (row, language) pair in the run where a placeholder/glossary rule
+    # applied: fraction that came through intact. Game mode only (see GameLocalizationAgent.run);
+    # None means the mode doesn't compute it or nothing in this run ever triggered the rule —
+    # kept distinct from 0.0 so the UI can show "n/a" instead of a misleading 0%.
+    placeholder_preservation_rate: float | None = None
+    glossary_compliance_rate: float | None = None
     warnings: list[str] = field(default_factory=list)
     state_events: list[str] = field(default_factory=list)
 

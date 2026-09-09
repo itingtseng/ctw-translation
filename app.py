@@ -2830,6 +2830,8 @@ def append_run_record(document: dict, status: dict, outcome: str, result=None, e
         "Fallback splits": getattr(metrics, "fallback_splits", 0),
         "Escalated batches": getattr(metrics, "escalated_batches", 0),
         "Coverage": getattr(metrics, "coverage", None),
+        "Placeholder preservation": getattr(metrics, "placeholder_preservation_rate", None),
+        "Glossary compliance": getattr(metrics, "glossary_compliance_rate", None),
         "Duration (s)": round(getattr(metrics, "duration_seconds", 0.0), 2),
         "Detail": error,
     })
@@ -3191,6 +3193,8 @@ def render_execution_log(document: dict) -> None:
             column_config={
                 "Est. cost (USD)": st.column_config.NumberColumn(format="$%.5f"),
                 "Coverage": st.column_config.NumberColumn(format="percent"),
+                "Placeholder preservation": st.column_config.NumberColumn(format="percent"),
+                "Glossary compliance": st.column_config.NumberColumn(format="percent"),
             },
         )
         st.download_button(
@@ -4501,6 +4505,20 @@ def render_game_review_launcher(document: dict, result) -> None:
         f"{confidence_counts.get('Medium', 0)} medium · "
         f"{confidence_counts.get('Low', 0)} low confidence · "
         f"{len(approved_translation_memory(review))} project TM entrie(s)."
+    )
+    placeholder_rate = result.metrics.placeholder_preservation_rate
+    glossary_rate = result.metrics.glossary_compliance_rate
+    st.caption(
+        "Placeholder preservation: "
+        + (f"{placeholder_rate:.0%}" if placeholder_rate is not None else "n/a (no placeholders in this run)")
+        + " · Glossary compliance: "
+        + (f"{glossary_rate:.0%}" if glossary_rate is not None else "n/a (no glossary rules applied)"),
+        help=(
+            "Recall across every (row, language) pair where a source placeholder or glossary rule "
+            "applied this run: the fraction that came through the translation intact. Measured from "
+            "this run's own QA checks, not a fixed test set — see evaluate.py for the offline gold-set "
+            "equivalent."
+        ),
     )
     render_game_review_actions(document, result, review, cards)
 
